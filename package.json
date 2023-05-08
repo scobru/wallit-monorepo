@@ -1,5 +1,5 @@
 {
-  "name": "se-2",
+  "name": "wallit",
   "version": "0.0.1",
   "private": true,
   "workspaces": {
@@ -9,28 +9,31 @@
     ]
   },
   "scripts": {
-    "account": "yarn workspace @se-2/hardhat account",
-    "chain": "yarn workspace @se-2/hardhat chain",
-    "fork": "yarn workspace @se-2/hardhat fork",
-    "deploy": "yarn workspace @se-2/hardhat deploy",
-    "verify": "yarn workspace @se-2/hardhat verify",
-    "compile": "yarn workspace @se-2/hardhat compile",
-    "generate": "yarn workspace @se-2/hardhat generate",
-    "hardhat:lint": "yarn workspace @se-2/hardhat lint",
-    "hardhat:lint-staged": "yarn workspace @se-2/hardhat lint-staged",
-    "hardhat:test": "yarn workspace @se-2/hardhat test",
-    "start": "yarn workspace @se-2/nextjs dev",
-    "next:lint": "yarn workspace @se-2/nextjs lint",
-    "next:format": "yarn workspace @se-2/nextjs format",
-    "next:check-types": "yarn workspace @se-2/nextjs check-types",
+    "account": "yarn workspace @wallit/hardhat account",
+    "chain": "yarn workspace @wallit/hardhat chain",
+    "fork": "yarn workspace @wallit/hardhat fork",
+    "deploy": "yarn workspace @wallit/hardhat deploy",
+    "verify": "yarn workspace @wallit/hardhat verify",
+    "compile": "yarn workspace @wallit/hardhat compile",
+    "generate": "yarn workspace @wallit/hardhat generate",
+    "hardhat:lint": "yarn workspace @wallit/hardhat lint",
+    "hardhat:lint-staged": "yarn workspace @wallit/hardhat lint-staged",
+    "hardhat:test": "yarn workspace @wallit/hardhat test",
+    "start": "yarn workspace @wallit/nextjs dev",
+    "next:lint": "yarn workspace @wallit/nextjs lint",
+    "next:format": "yarn workspace @wallit/nextjs format",
+    "next:check-types": "yarn workspace @wallit/nextjs check-types",
     "postinstall": "husky install",
     "precommit": "lint-staged",
-    "vercel": "yarn workspace @se-2/nextjs vercel",
-    "vercel:yolo": "yarn workspace @se-2/nextjs vercel:yolo"
+    "vercel": "yarn workspace @wallit/nextjs vercel",
+    "vercel:yolo": "yarn workspace @wallit/nextjs vercel:yolo"
   },
   "packageManager": "yarn@3.2.3",
   "devDependencies": {
     "husky": "^8.0.1",
     "lint-staged": "^13.0.3"
+  },
+  "dependencies": {
+    "@lit-protocol/lit-node-client-nodejs": "^2.1.135"
   }
 }

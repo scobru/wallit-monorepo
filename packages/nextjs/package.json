@@ -1,5 +1,5 @@
 {
-  "name": "@se-2/nextjs",
+  "name": "@wallit/nextjs",
   "private": true,
   "version": "0.1.0",
   "scripts": {
@@ -17,6 +17,10 @@
     "@ethersproject/networks": "^5.7.1",
     "@ethersproject/web": "^5.7.1",
     "@heroicons/react": "^2.0.11",
+    "@lit-protocol/lit-auth-client": "^2.1.101",
+    "@lit-protocol/lit-node-client": "^2.1.135",
+    "@lit-protocol/lit-node-client-nodejs": "^2.1.160",
+    "@lit-protocol/sdk-browser": "^1.1.250",
     "@rainbow-me/rainbowkit": "^0.11.0",
     "@uniswap/sdk": "^3.0.3",
     "daisyui": "^2.31.0",
@@ -29,6 +33,7 @@
     "react-dom": "^18.2.0",
     "react-fast-marquee": "^1.3.5",
     "react-hot-toast": "^2.4.0",
+    "siwe": "^2.1.4",
     "use-debounce": "^8.0.4",
     "usehooks-ts": "^2.7.2",
     "wagmi": "^0.11.6",

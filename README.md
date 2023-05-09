@@ -2,9 +2,9 @@
 
 WALLIT is a decentralized wallet that utilizes Lit Protocol to create infinite private keys, removing the need for users to manage and store their own private keys. Lit Protocol uses a unique technology called Lit PKP (Private Key Protection) to securely store and manage private keys.
 
-### What is Lit PKP?
+### What is [Lit ](https://litprotocol.com/)PKP?
 
-Lit PKP is a technology developed by Lit Protocol to securely manage private keys in a decentralized manner. With Lit PKP, private keys are divided into fragments, encrypted, and stored across multiple nodes in the Lit Protocol network. This ensures that private keys are never fully accessible in any single location, making them much more secure than traditional private key management solutions.
+[Lit ](https://litprotocol.com/)PKP is a technology developed by Lit Protocol to securely manage private keys in a decentralized manner. With Lit PKP, private keys are divided into fragments, encrypted, and stored across multiple nodes in the Lit Protocol network. This ensures that private keys are never fully accessible in any single location, making them much more secure than traditional private key management solutions.
 
 ### Features
 
@@ -46,8 +46,6 @@ We welcome contributions to WALLIT! To contribute, follow these steps:
 
 WALLIT is licensed under the MIT License. See LICENSE.md for more information.
 
-### Contact
 
-If you have any questions or suggestions, please contact us at [support@litprotocol.com](mailto:support@litprotocol.com).
 
 Thanks for using WALLIT! 🚀

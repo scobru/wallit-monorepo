@@ -2515,92 +2515,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@se-2/hardhat@workspace:packages/hardhat":
-  version: 0.0.0-use.local
-  resolution: "@se-2/hardhat@workspace:packages/hardhat"
-  dependencies:
-    "@ethersproject/abi": ^5.7.0
-    "@ethersproject/providers": ^5.7.1
-    "@nomicfoundation/hardhat-chai-matchers": ^1.0.3
-    "@nomicfoundation/hardhat-network-helpers": ^1.0.6
-    "@nomicfoundation/hardhat-toolbox": ^2.0.0
-    "@nomiclabs/hardhat-ethers": "npm:hardhat-deploy-ethers@^0.3.0-beta.13"
-    "@nomiclabs/hardhat-etherscan": ^3.1.0
-    "@openzeppelin/contracts": ^4.8.1
-    "@typechain/ethers-v5": ^10.1.0
-    "@typechain/hardhat": ^6.1.3
-    "@types/eslint": ^8
-    "@types/mocha": ^9.1.1
-    "@types/prettier": ^2
-    "@types/qrcode": ^1
-    "@typescript-eslint/eslint-plugin": latest
-    "@typescript-eslint/parser": latest
-    chai: ^4.3.6
-    dotenv: ^16.0.3
-    envfile: ^6.18.0
-    eslint: ^8.26.0
-    eslint-config-prettier: ^8.5.0
-    eslint-plugin-prettier: ^4.2.1
-    ethers: ^5.7.1
-    hardhat: ^2.11.2
-    hardhat-deploy: ^0.11.25
-    hardhat-gas-reporter: ^1.0.9
-    prettier: ^2.8.4
-    qrcode: ^1.5.1
-    solidity-coverage: ^0.8.2
-    ts-node: ^10.9.1
-    typechain: ^8.1.0
-    typescript: ^4.9.5
-  languageName: unknown
-  linkType: soft
-
-"@se-2/nextjs@workspace:packages/nextjs":
-  version: 0.0.0-use.local
-  resolution: "@se-2/nextjs@workspace:packages/nextjs"
-  dependencies:
-    "@ethersproject/networks": ^5.7.1
-    "@ethersproject/web": ^5.7.1
-    "@heroicons/react": ^2.0.11
-    "@lit-protocol/lit-auth-client": ^2.1.101
-    "@lit-protocol/lit-node-client": ^2.1.135
-    "@lit-protocol/lit-node-client-nodejs": ^2.1.160
-    "@lit-protocol/sdk-browser": ^1.1.250
-    "@rainbow-me/rainbowkit": ^0.11.0
-    "@trivago/prettier-plugin-sort-imports": ^4.1.1
-    "@types/node": ^17.0.35
-    "@types/react": ^18.0.9
-    "@types/react-blockies": ^1.4.1
-    "@types/react-copy-to-clipboard": ^5.0.4
-    "@typescript-eslint/eslint-plugin": ^5.39.0
-    "@uniswap/sdk": ^3.0.3
-    autoprefixer: ^10.4.12
-    daisyui: ^2.31.0
-    eslint: ^8.15.0
-    eslint-config-next: ^13.1.6
-    eslint-config-prettier: ^8.5.0
-    eslint-plugin-prettier: ^4.2.1
-    ethers: ^5.0.0
-    next: ^13.1.6
-    nextjs-progressbar: ^0.0.16
-    postcss: ^8.4.16
-    prettier: ^2.8.4
-    react: ^18.2.0
-    react-blockies: ^1.4.1
-    react-copy-to-clipboard: ^5.1.0
-    react-dom: ^18.2.0
-    react-fast-marquee: ^1.3.5
-    react-hot-toast: ^2.4.0
-    siwe: ^2.1.4
-    tailwindcss: ^3.1.8
-    typescript: ^4.9.5
-    use-debounce: ^8.0.4
-    usehooks-ts: ^2.7.2
-    vercel: ^28.15.1
-    wagmi: ^0.11.6
-    zustand: ^4.1.2
-  languageName: unknown
-  linkType: soft
-
 "@sentry/core@npm:5.30.0":
   version: 5.30.0
   resolution: "@sentry/core@npm:5.30.0"
@@ -4712,6 +4626,95 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@wallit/hardhat@workspace:packages/hardhat":
+  version: 0.0.0-use.local
+  resolution: "@wallit/hardhat@workspace:packages/hardhat"
+  dependencies:
+    "@ethersproject/abi": ^5.7.0
+    "@ethersproject/providers": ^5.7.1
+    "@nomicfoundation/hardhat-chai-matchers": ^1.0.3
+    "@nomicfoundation/hardhat-network-helpers": ^1.0.6
+    "@nomicfoundation/hardhat-toolbox": ^2.0.0
+    "@nomiclabs/hardhat-ethers": "npm:hardhat-deploy-ethers@^0.3.0-beta.13"
+    "@nomiclabs/hardhat-etherscan": ^3.1.0
+    "@openzeppelin/contracts": ^4.8.1
+    "@typechain/ethers-v5": ^10.1.0
+    "@typechain/hardhat": ^6.1.3
+    "@types/eslint": ^8
+    "@types/mocha": ^9.1.1
+    "@types/prettier": ^2
+    "@types/qrcode": ^1
+    "@typescript-eslint/eslint-plugin": latest
+    "@typescript-eslint/parser": latest
+    chai: ^4.3.6
+    dotenv: ^16.0.3
+    envfile: ^6.18.0
+    eslint: ^8.26.0
+    eslint-config-prettier: ^8.5.0
+    eslint-plugin-prettier: ^4.2.1
+    ethers: ^5.7.1
+    hardhat: ^2.11.2
+    hardhat-deploy: ^0.11.25
+    hardhat-gas-reporter: ^1.0.9
+    prettier: ^2.8.4
+    qrcode: ^1.5.1
+    solidity-coverage: ^0.8.2
+    ts-node: ^10.9.1
+    typechain: ^8.1.0
+    typescript: ^4.9.5
+  languageName: unknown
+  linkType: soft
+
+"@wallit/nextjs@workspace:packages/nextjs":
+  version: 0.0.0-use.local
+  resolution: "@wallit/nextjs@workspace:packages/nextjs"
+  dependencies:
+    "@ethersproject/networks": ^5.7.1
+    "@ethersproject/web": ^5.7.1
+    "@heroicons/react": ^2.0.11
+    "@lit-protocol/lit-auth-client": ^2.1.101
+    "@lit-protocol/lit-node-client": ^2.1.135
+    "@lit-protocol/lit-node-client-nodejs": ^2.1.160
+    "@lit-protocol/sdk-browser": ^1.1.250
+    "@rainbow-me/rainbowkit": ^0.11.0
+    "@trivago/prettier-plugin-sort-imports": ^4.1.1
+    "@types/node": ^17.0.35
+    "@types/react": ^18.0.9
+    "@types/react-blockies": ^1.4.1
+    "@types/react-copy-to-clipboard": ^5.0.4
+    "@typescript-eslint/eslint-plugin": ^5.39.0
+    "@uniswap/sdk": ^3.0.3
+    autoprefixer: ^10.4.12
+    daisyui: ^2.31.0
+    eslint: ^8.15.0
+    eslint-config-next: ^13.1.6
+    eslint-config-prettier: ^8.5.0
+    eslint-plugin-prettier: ^4.2.1
+    ethereum-qr-code: ^0.3.0
+    ethers: ^5.0.0
+    next: ^13.1.6
+    nextjs-progressbar: ^0.0.16
+    postcss: ^8.4.16
+    prettier: ^2.8.4
+    qrcode.react: ^3.1.0
+    react: ^18.2.0
+    react-blockies: ^1.4.1
+    react-copy-to-clipboard: ^5.1.0
+    react-dom: ^18.2.0
+    react-fast-marquee: ^1.3.5
+    react-hot-toast: ^2.4.0
+    react-metamask-avatar: ^1.2.1
+    siwe: ^2.1.4
+    tailwindcss: ^3.1.8
+    typescript: ^4.9.5
+    use-debounce: ^8.0.4
+    usehooks-ts: ^2.7.2
+    vercel: ^28.15.1
+    wagmi: ^0.11.6
+    zustand: ^4.1.2
+  languageName: unknown
+  linkType: soft
+
 "@web3modal/core@npm:2.1.1":
   version: 2.1.1
   resolution: "@web3modal/core@npm:2.1.1"
@@ -5596,6 +5599,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"bignumber.js@npm:4.1.0":
+  version: 4.1.0
+  resolution: "bignumber.js@npm:4.1.0"
+  checksum: d6356def9af39048e4ce87ee6518e85a69e297c9a055df1e44633d8e3a6c2b4cf2d333462e1ab8a7c487c851adc45fb44bb5748d545d2416ac0f751bccd811c8
+  languageName: node
+  linkType: hard
+
 "bignumber.js@npm:^9.0.1":
   version: 9.1.0
   resolution: "bignumber.js@npm:9.1.0"
@@ -6370,7 +6380,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"colors@npm:1.4.0, colors@npm:^1.1.2":
+"colors@npm:*, colors@npm:1.4.0, colors@npm:^1.1.2":
   version: 1.4.0
   resolution: "colors@npm:1.4.0"
   checksum: 98aa2c2418ad87dedf25d781be69dc5fc5908e279d9d30c34d8b702e586a0474605b3a189511482b9d5ed0d20c867515d22749537f7bc546256c6014f3ebdcec
@@ -8100,6 +8110,16 @@ __metadata:
     "@scure/bip32": 1.1.0
     "@scure/bip39": 1.1.0
   checksum: 0ef55f141acad45b1ba1db58ce3d487155eb2d0b14a77b3959167a36ad324f46762873257def75e7f00dbe8ac78aabc323d2207830f85e63a42a1fb67063a6ba
+  languageName: node
+  linkType: hard
+
+"ethereum-qr-code@npm:^0.3.0":
+  version: 0.3.0
+  resolution: "ethereum-qr-code@npm:0.3.0"
+  dependencies:
+    bignumber.js: 4.1.0
+    qrcode: 0.9.0
+  checksum: f922028bf1c2fe8ee8d760217a8b8cdc8e4932d7576c442ddf541f923ab675ff616ec25df3a7841d43b562a295ea5f3b35ec6eae356ed38c32333e5b28bff464
   languageName: node
   linkType: hard
 
@@ -12594,6 +12614,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"pngjs@npm:^2.3.1":
+  version: 2.3.1
+  resolution: "pngjs@npm:2.3.1"
+  checksum: 27bc09e6a58e2c57ea4aed6ae4a487d482616eaf87f853b38421a141bb281e323105527eca0c6d5303d3efdc81a78c56ed58222633cf9d75c2e15c8203990c53
+  languageName: node
+  linkType: hard
+
 "pngjs@npm:^3.3.0":
   version: 3.4.0
   resolution: "pngjs@npm:3.4.0"
@@ -12894,6 +12921,29 @@ __metadata:
   languageName: node
   linkType: hard
 
+"qrcode.react@npm:^3.1.0":
+  version: 3.1.0
+  resolution: "qrcode.react@npm:3.1.0"
+  peerDependencies:
+    react: ^16.8.0 || ^17.0.0 || ^18.0.0
+  checksum: 94a2942ecf83f461d869adb20305ae663c6d1abe93ef2c72442b07d756ce70cf6deb6fd588dc5b382b48c6991cfde1dfd5ac9b814c1461e71d5edb2d945e67fc
+  languageName: node
+  linkType: hard
+
+"qrcode@npm:0.9.0":
+  version: 0.9.0
+  resolution: "qrcode@npm:0.9.0"
+  dependencies:
+    colors: "*"
+    dijkstrajs: ^1.0.1
+    isarray: ^2.0.1
+    pngjs: ^2.3.1
+  bin:
+    qrcode: ./bin/qrcode
+  checksum: 51ad580a5343ae50ff7a5aa4b7c3330f3bc237f23cb30c23c2d313ea0006fd32023a05e7eea028c4c909b8c81dcbccbb08f34eb2565cb89f006dc9ca3faa45f7
+  languageName: node
+  linkType: hard
+
 "qrcode@npm:1.4.4":
   version: 1.4.4
   resolution: "qrcode@npm:1.4.4"
@@ -13111,6 +13161,16 @@ __metadata:
   version: 16.13.1
   resolution: "react-is@npm:16.13.1"
   checksum: f7a19ac3496de32ca9ae12aa030f00f14a3d45374f1ceca0af707c831b2a6098ef0d6bdae51bd437b0a306d7f01d4677fcc8de7c0d331eb47ad0f46130e53c5f
+  languageName: node
+  linkType: hard
+
+"react-metamask-avatar@npm:^1.2.1":
+  version: 1.2.1
+  resolution: "react-metamask-avatar@npm:1.2.1"
+  peerDependencies:
+    react: 17.0.2
+    react-dom: 17.0.2
+  checksum: a86a4e879f180a1d71b8d5439da2997a98ef280e01535e7daddffbecde4fde884908e051b9c3af9afcd9a0fe1ca0f37f84e51427bc6236003bd7524f3b2ce835
   languageName: node
   linkType: hard
 
@@ -13776,16 +13836,6 @@ __metadata:
   checksum: b7c7d1a68d6ca946f2fbb0778e0c4ec63c65501b54023b2af7d7e9f48fdb6c6580d6f7675cd53bda5944c5ebc057560d5a6365079752546865defb3b79dea454
   languageName: node
   linkType: hard
-
-"se-2@workspace:.":
-  version: 0.0.0-use.local
-  resolution: "se-2@workspace:."
-  dependencies:
-    "@lit-protocol/lit-node-client-nodejs": ^2.1.135
-    husky: ^8.0.1
-    lint-staged: ^13.0.3
-  languageName: unknown
-  linkType: soft
 
 "secp256k1@npm:^4.0.1":
   version: 4.0.3
@@ -15474,6 +15524,17 @@ __metadata:
   checksum: 98f1227650bcc7a92184da2b8b7adfb91b60d1135a41597e13f929aecbe698b54af076d8b532c0d4599cf3e5e57b2d39ce4c9b998e8f7a48042f09afdcb48aab
   languageName: node
   linkType: hard
+
+"wallit@workspace:.":
+  version: 0.0.0-use.local
+  resolution: "wallit@workspace:."
+  dependencies:
+    "@lit-protocol/lit-node-client-nodejs": ^2.1.135
+    husky: ^8.0.1
+    lint-staged: ^13.0.3
+    react-metamask-avatar: ^1.2.1
+  languageName: unknown
+  linkType: soft
 
 "web-streams-polyfill@npm:^3.0.3":
   version: 3.2.1

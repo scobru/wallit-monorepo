@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Head from "next/head";
 import { useRouter } from "next/router";
+import { QrCode } from "../components/Qrcode";
 import { ProviderType } from "@lit-protocol/constants";
 import {
   BaseProvider,
@@ -35,8 +36,12 @@ import {
   splitSignature,
   verifyMessage,
 } from "ethers/lib/utils.js";
+import { QRCodeCanvas } from "qrcode.react";
+import { MetaMaskAvatar } from "react-metamask-avatar";
 import { SiweMessage } from "siwe";
 import { Connector, serialize, useAccount, useBalance, useConnect, useDisconnect, useProvider, useSigner } from "wagmi";
+import { ArrowDownCircleIcon, ArrowRightCircleIcon } from "@heroicons/react/24/outline";
+import { Address, BlockieAvatar } from "~~/components/scaffold-eth";
 import { useDeployedContractInfo } from "~~/hooks/scaffold-eth";
 import { notification } from "~~/utils/scaffold-eth";
 
@@ -789,13 +794,16 @@ export default function Wallet() {
         )}
         {view === Views.SESSION_CREATED && (
           <>
-            <h1 className="text-6xl font-bold">WAL.LIT</h1>
             <div>
-              <p className="text-xl font-semibold">{currentPKP?.ethAddress}</p>
-              <p className="text-lg font-semibold"> 💲 {balance?.formatted}</p>
+              <p className="text-2xl font-semibold">
+                <Address address={currentPKP?.ethAddress} format="long" />
+              </p>
+              <MetaMaskAvatar address={currentPKP?.ethAddress} size={150} />
+
+              <p className="text-8xl font-semibold"> 💲 {balance?.formatted}</p>
             </div>
             <div className="w-fit">
-              <p>Select PKP</p>
+              <p>Change Address</p>
               <select
                 className="select select-bordered"
                 onChange={async e => {
@@ -811,51 +819,90 @@ export default function Wallet() {
               </select>
             </div>
             <hr></hr>
-            <div className="bg-secondary m-5 p-5 border-1 rounded-xl">
-              <p className="text-2xl text-left">Send ETH</p>
-              <input
-                value={amountToSend}
-                onChange={e => setAmountToSend(e.target.value)}
-                className="input input-bordered w-full mb-4"
-                type="text"
-                required
-                placeholder="Enter amount to send"
-              />
-              <input
-                value={addressReceiver}
-                onChange={e => setAddressReceiver(e.target.value)}
-                className="input input-bordered w-full mb-4"
-                type="text"
-                required
-                placeholder="Receiver "
-              />
-              <button onClick={sendETHWithPKP} className="btn btn-primary">
-                Send ETH
-              </button>
+            <div className="flex flex-row">
+              <label htmlFor="send-modal" className="btn btn-circle m-5">
+                <ArrowRightCircleIcon />
+              </label>
+              <input type="checkbox" id="send-modal" className="modal-toggle" />
+              <div className="modal">
+                <div className="modal-box">
+                  <h3 className="font-bold text-lg">Send</h3>
+                  <input
+                    value={amountToSend}
+                    onChange={e => setAmountToSend(e.target.value)}
+                    className="input input-bordered w-full mb-4"
+                    type="text"
+                    required
+                    placeholder="Enter amount to send"
+                  />
+                  <input
+                    value={addressReceiver}
+                    onChange={e => setAddressReceiver(e.target.value)}
+                    className="input input-bordered w-full mb-4"
+                    type="text"
+                    required
+                    placeholder="Receiver "
+                  />
+                  <button onClick={sendETHWithPKP} className="btn btn-primary">
+                    Send ETH
+                  </button>
+                  <div className="modal-action">
+                    <label htmlFor="send-modal" className="btn">
+                      Close
+                    </label>
+                  </div>
+                </div>
+              </div>
+              <label htmlFor="receive-modal" className="btn btn-circle m-5">
+                <ArrowDownCircleIcon />
+              </label>
+              <input type="checkbox" id="receive-modal" className="modal-toggle" />
+              <div className="modal">
+                <div className="modal-box">
+                  <QRCodeCanvas
+                    className="text-center"
+                    id="qrCode"
+                    value={String(currentPKP?.ethAddress)}
+                    size={300}
+                    style={{ alignItems: "center" }}
+                    /* bgColor={"#00ff00"} */ level={"H"}
+                  />
+
+                  <div className="modal-action">
+                    <label htmlFor="receive-modal" className="btn">
+                      Close
+                    </label>
+                  </div>
+                </div>
+              </div>
             </div>
-            <div className="bg-secondary m-5 p-5 border-1 rounded-xl">
-              <p className="text-2xl">Write a message and Sign it with your PKP</p>
-              <textarea
-                onChange={e => setMessage(e.target.value)}
-                className="input input-bordered w-96 p-2 my-2"
-                type="text"
-                required
-                placeholder="Enter message to sign"
-              />
-              <br></br>
-              <button className="btn btn-primary my-5" onClick={signMessageWithPKP}>
-                Sign message
-              </button>
-              {signature && (
-                <>
-                  <h3 className="text-lg">Your signature:</h3>
-                  <p className="break-all">{signature}</p>
-                  <h2 className="text-lg">Recovered address</h2>
-                  <p className="font-bold">{recoveredAddress}</p>
-                  <h3>Verified</h3>
-                  <p className="font-bold">{verified ? "true" : "false"}</p>
-                </>
-              )}
+            <div className="collapse text-center mx-auto">
+              <input type="checkbox" />
+              <div className="collapse-title text-2xl font-medium">Click Me for Extras</div>
+              <div className="collapse-content bg-secondary rounded-lg">
+                <p className="text-xl">Write a message and Sign it with your PKP</p>
+                <textarea
+                  onChange={e => setMessage(e.target.value)}
+                  className="input input-bordered w-96 p-2 my-2"
+                  type="text"
+                  required
+                  placeholder="Enter message to sign"
+                />
+                <br></br>
+                <button className="btn btn-primary my-5" onClick={signMessageWithPKP}>
+                  Sign message
+                </button>
+                {signature && (
+                  <>
+                    <h3 className="text-lg">Your signature:</h3>
+                    <p className="break-all font-bold">{signature}</p>
+                    <h2 className="text-lg">Recovered address</h2>
+                    <p className="font-bold">{recoveredAddress}</p>
+                    <h3>Verified</h3>
+                    <p className="font-bold">{verified ? "true" : "false"}</p>
+                  </>
+                )}
+              </div>
             </div>
           </>
         )}

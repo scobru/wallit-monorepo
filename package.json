@@ -34,6 +34,7 @@
     "lint-staged": "^13.0.3"
   },
   "dependencies": {
-    "@lit-protocol/lit-node-client-nodejs": "^2.1.135"
+    "@lit-protocol/lit-node-client-nodejs": "^2.1.135",
+    "react-metamask-avatar": "^1.2.1"
   }
 }

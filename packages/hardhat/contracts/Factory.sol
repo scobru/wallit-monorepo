@@ -7,17 +7,17 @@ contract Factory {
 
   // create a Wallit Instance
   function createWallit() public returns (Wallit) {
-    Wallit wallit = new Wallit();
+    Wallit wallit = new Wallit(msg.sender);
     wallits[msg.sender] = (address(wallit));
     return wallit;
   }
 
   // get the Wallit instance of the sender
-  function getWallit() public view returns (Wallit) {
-    if (wallits[msg.sender] == address(0)) {
+  function getWallit(address _addr) public view returns (Wallit) {
+    if (wallits[_addr] == address(0)) {
       return Wallit(address(0));
     } else {
-      return Wallit(wallits[msg.sender]);
+      return Wallit(wallits[_addr]);
     }
   }
 }

@@ -1,7 +1,11 @@
 import { useCallback, useEffect, useState } from "react";
 import Head from "next/head";
 import { useRouter } from "next/router";
-import { useTransactor } from "../hooks/scaffold-eth";
+import { useScaffoldContractRead, useTransactor } from "../hooks/scaffold-eth";
+import { useScaffoldContractWrite } from "../hooks/scaffold-eth";
+import { addresses } from "../utils/constant";
+import { BigNumber } from "@ethersproject/bignumber";
+import { MaxUint256 } from "@ethersproject/constants";
 import { ProviderType } from "@lit-protocol/constants";
 import {
   BaseProvider,
@@ -36,12 +40,18 @@ import {
   useBalance,
   useBlockNumber,
   useConnect,
+  useContractWrite,
   useDisconnect,
+  usePrepareContractWrite,
   useProvider,
   useSigner,
 } from "wagmi";
 import {
+  ArchiveBoxIcon,
   ArrowDownCircleIcon,
+  ArrowDownRightIcon,
+  ArrowLeftCircleIcon,
+  ArrowPathIcon,
   ArrowRightCircleIcon,
   ArrowUpCircleIcon,
   CheckBadgeIcon,
@@ -74,32 +84,32 @@ enum Views {
 }
 
 const Home: NextPage = () => {
-  const domain = "localhost:3000";
   const redirectUri = "https://localhost:3000/wallet";
-
-  const txData = useTransactor();
-
-  const { data: factoryCtx } = useDeployedContractInfo("Factory");
-  const { data: wallitCtx } = useDeployedContractInfo("Wallit");
-
   const { data: signer } = useSigner();
+  const account = useAccount();
+  const signerAddress = account?.address;
 
   const provider = useProvider();
-  const [signClient, setSignClient] = useState();
-
-  const { data: blockNumber } = useBlockNumber();
-
-  let ctxInstance: ethers.Contract;
-
-  if (nftContract) {
-    ctxInstance = new ethers.Contract(nftContract?.address, nftContract?.abi, signer || provider);
-  }
   const router = useRouter();
-  const chainName = "mumbai";
+  const chainName = "polygon";
+  const txData = useTransactor();
+  const block = useBlockNumber();
+
+  const { data: wallitCtx } = useDeployedContractInfo("Wallit");
+
+  const { writeAsync: createWallit } = useScaffoldContractWrite({
+    contractName: "Factory",
+    functionName: "createWallit",
+  });
+
+  const { data: yourWallit } = useScaffoldContractRead({
+    contractName: "Factory",
+    functionName: "getWallit",
+    args: [signerAddress],
+  });
 
   const [view, setView] = useState<Views>(Views.SIGN_IN);
   const [error, setError] = useState<any>();
-
   const [litAuthClient, setLitAuthClient] = useState<LitAuthClient>();
   const [litNodeClient, setLitNodeClient] = useState<LitNodeClient>();
   const [currentProviderType, setCurrentProviderType] = useState<ProviderType>();
@@ -107,57 +117,54 @@ const Home: NextPage = () => {
   const [pkps, setPKPs] = useState<IRelayPKP[]>([]);
   const [currentPKP, setCurrentPKP] = useState<IRelayPKP>();
   const [sessionSigs, setSessionSigs] = useState<SessionSigs>();
-  const [authSig, setAuthSig] = useState<AuthSig>();
-
+  const [, setAuthSig] = useState<AuthSig>();
   const [message, setMessage] = useState<string>("Free the web!");
   const [signature, setSignature] = useState<string>();
   const [recoveredAddress, setRecoveredAddress] = useState<string>();
   const [verified, setVerified] = useState<boolean>(false);
-
   const [targetAddress, setTargetAddress] = useState<string>("");
-
   const [amountToSend, setAmountToSend] = useState<string>("0");
   const [tokenToApprove, setTokenToApprove] = useState<string>("0");
-
-  const [name, setName] = useState("");
-  const [description, setDescription] = useState("");
-  const [imageUrl, setImageUrl] = useState("");
   const [customTx, setCustomTx] = useState("");
+  const [wallitName, setWallitName] = useState("");
+  const [wallitDescription, setWallitDescription] = useState("");
+  const [balance, setBalance] = useState<string>();
+  const [tokenFrom, setTokenFrom] = useState<string>();
+  const [tokenTo, setTokenTo] = useState<string>();
+  const [amountToSwap, setAmountToSwap] = useState<string>();
 
-  const [nftId, setNftId] = useState<number[]>([]);
-
-  const decryptInfo = "Click the Decrypt button below to decrypt the NFT description.";
-  const noAuthError = "You should have at least 0.1 MATIC to decrypt the description! Try again.";
-  const otherError = "Some unexpected error occurred. Please try again!";
-
-  const [descriptionDecrypted, setDescriptionDecrypted] = useState(decryptInfo);
-  const [tempCode, setTempCode] = useState(0);
-
-  const [nfts, setNfts] = useState<any>();
-
-  const { data: balance } = useBalance({
-    address: currentPKP?.ethAddress,
-    chainId: 80001,
-    formatUnits: "ether",
+  const executeSetWallitNamePrepared = usePrepareContractWrite({
+    address: String(yourWallit),
+    abi: wallitCtx?.abi,
+    functionName: "setName",
+    args: [wallitName, String(currentPKP?.ethAddress)],
   });
 
-  const accessControlConditions = [
-    {
-      contractAddress: "",
-      standardContractType: "",
-      chain: chainName,
-      method: "eth_getBalance",
-      parameters: [":userAddress", "latest"],
-      returnValueTest: {
-        comparator: ">=",
-        value: "10000000000000",
-      },
-    },
-  ];
+  const executeSetWallitName = useContractWrite(executeSetWallitNamePrepared.config);
+
+  const zapperUrl = "https://zapper.xyz/account/" + currentPKP?.ethAddress;
+  const qrCodeUrl = "ethereum:" + currentPKP?.ethAddress + "/pay?chain_id=137value=0";
 
   useEffect(() => {
-    setDescription(decryptInfo);
-  }, [nfts]);
+    if (wallitCtx && yourWallit != "0x0000000000000000000000000000000000000000" && signer && currentPKP?.ethAddress) {
+      const contract = new ethers.Contract(String(yourWallit), wallitCtx?.abi, signer || provider);
+      // fetch ETH amount of an address with ethers
+      const getBalance = async () => {
+        const balance = await provider.getBalance(currentPKP?.ethAddress);
+        setBalance(ethers.utils.formatEther(balance));
+      };
+      getBalance();
+
+      const getWallitNames = async () => {
+        const name = await contract.getNames(currentPKP?.ethAddress);
+
+        setWallitDescription(name);
+      };
+      getWallitNames();
+    } else {
+      setWallitDescription("");
+    }
+  }, [block, signer, provider, wallitCtx, currentPKP?.ethAddress, balance]);
 
   // Use wagmi to connect one's eth wallet
   const { connectAsync, connectors } = useConnect({
@@ -168,6 +175,89 @@ const Home: NextPage = () => {
   });
   const { isConnected, connector, address } = useAccount();
   const { disconnectAsync } = useDisconnect();
+
+  async function processTransaction(tx) {
+    const serializedTx = ethers.utils.serializeTransaction(tx);
+    const toSign = ethers.utils.arrayify(ethers.utils.keccak256(serializedTx));
+    const message = serializedTx;
+
+    const litActionCode = `
+        const go = async () => {
+          // this requests a signature share from the Lit Node
+          // the signature share will be automatically returned in the response from the node
+          // and combined into a full signature by the LitJsSdk for you to use on the client
+          // all the params (toSign, publicKey, sigName) are passed in from the LitJsSdk.executeJs() function
+          const sigShare = await LitActions.signEcdsa({ toSign, publicKey, sigName });
+        };
+        go();
+      `;
+
+    // Sign message
+    // @ts-ignore - complains about no authSig, but we don't need one for this action
+    const results = await litNodeClient.executeJs({
+      code: litActionCode,
+      sessionSigs: sessionSigs,
+      jsParams: {
+        toSign: toSign,
+        publicKey: currentPKP?.publicKey,
+        sigName: "sig1",
+      },
+    });
+
+    // Get signature
+    const result = results.signatures["sig1"];
+    console.log("result", result);
+
+    // Split the signature object
+    const dataSigned = toSign;
+    console.log("dataSigned", dataSigned);
+
+    const encodedSig = joinSignature({
+      r: "0x" + result.r,
+      s: "0x" + result.s,
+      v: result.recid,
+    });
+
+    const encodedSplitSig = splitSignature({
+      r: "0x" + result.r,
+      s: "0x" + result.s,
+      v: result.recid,
+    });
+
+    setSignature(encodedSig);
+    console.log("signature", encodedSig);
+
+    const recoveredPubkey = recoverPublicKey(dataSigned, encodedSig);
+    console.log("uncompressed recoveredPubkey", recoveredPubkey);
+
+    const compressedRecoveredPubkey = computePublicKey(recoveredPubkey, true);
+    console.log("compressed recoveredPubkey", compressedRecoveredPubkey);
+
+    const recoveredAddress = recoverAddress(dataSigned, encodedSig);
+    console.log("recoveredAddress", recoveredAddress);
+
+    const recoveredAddressViaMessage = verifyMessage(message, encodedSig);
+    console.log("recoveredAddressViaMessage", recoveredAddressViaMessage);
+
+    // Get the address associated with the signature created by signing the message
+    const recoveredAddr = recoveredAddress;
+    setRecoveredAddress(recoveredAddr);
+    console.log("recoveredAddr", recoveredAddr);
+
+    // Check if the address associated with the signature is the same as the current PKP
+    const verified = currentPKP?.ethAddress.toLowerCase() === recoveredAddr.toLowerCase();
+    setVerified(verified);
+    console.log("verified", verified);
+
+    const signedTransaction = ethers.utils.serializeTransaction(tx, encodedSig);
+    console.log("signedTransaction", signedTransaction);
+
+    const txSend = await sendSignedTransaction(signedTransaction, provider);
+    txSend.wait().then((receipt: any) => {
+      console.log("receipt", receipt);
+      notification.success("Transaction sent");
+    });
+  }
 
   const sendSignedTransaction = async (
     signedTransaction: number | ethers.utils.BytesLike | ethers.utils.Hexable,
@@ -231,12 +321,6 @@ const Home: NextPage = () => {
       v: result.recid,
     });
 
-    const encodedSplitSig = splitSignature({
-      r: "0x" + result.r,
-      s: "0x" + result.s,
-      v: result.recid,
-    });
-
     setSignature(encodedSig);
     console.log("signature", encodedSig);
 
@@ -266,6 +350,171 @@ const Home: NextPage = () => {
     console.log("signedTransaction", signedTransaction);
 
     await sendSignedTransaction(signedTransaction, provider);
+  }
+
+  // Swap Functions
+
+  async function generateSwapExactInputSingleCalldata(exactInputSingleData: {
+    tokenIn: any;
+    tokenOut: any;
+    fee: any;
+    recipient: any;
+    amountIn: any;
+    amountOutMinimum: any;
+    sqrtPriceLimitX96: any;
+  }) {
+    const iface = new Interface([
+      "function exactInputSingle(tuple(address,address,uint24,address,uint256,uint256,uint160)) external payable returns (uint256)",
+    ]);
+    return iface.encodeFunctionData("exactInputSingle", [
+      [
+        exactInputSingleData.tokenIn,
+        exactInputSingleData.tokenOut,
+        exactInputSingleData.fee,
+        exactInputSingleData.recipient,
+        exactInputSingleData.amountIn,
+        exactInputSingleData.amountOutMinimum,
+        exactInputSingleData.sqrtPriceLimitX96,
+      ],
+    ]);
+  }
+
+  async function generateSwapData(
+    swapDescription: {
+      srcToken: any;
+      dstToken: any;
+      srcReceiver: any;
+      dstReceiver: any;
+      amount: any;
+      minReturnAmout: any;
+      flags: any;
+      permit: any;
+    },
+    data: any,
+  ) {
+    const iface = new Interface([
+      "function swap(address,tuple(address,address,address,address,uint256,uint256,uint256,bytes),bytes) external returns (uint256,uint256)",
+    ]);
+    return iface.encodeFunctionData("swap", [
+      [
+        swapDescription.srcToken,
+        swapDescription.dstToken,
+        swapDescription.srcReceiver,
+        swapDescription.dstReceiver,
+        swapDescription.amount,
+        swapDescription.minReturnAmout,
+        swapDescription.flags,
+        swapDescription.permit,
+      ],
+      data,
+    ]);
+  }
+
+  async function executeUniswapV3SwapExactInputSingle(
+    swapRouterAddress: any,
+    exactInputSingleParams: {
+      tokenIn: any;
+      tokenOut: any;
+      fee: any;
+      recipient: any;
+      amountIn: any;
+      amountOutMinimum: any;
+      sqrtPriceLimitX96: any;
+    },
+  ) {
+    notification.info("Execute Swap");
+    const tx = {
+      to: swapRouterAddress,
+      nonce: await provider.getTransactionCount(currentPKP?.ethAddress),
+      value: 0,
+      gasPrice: await provider.getGasPrice(),
+      gasLimit: 500000,
+      chainId: (await provider.getNetwork()).chainId,
+      data: generateSwapExactInputSingleCalldata(exactInputSingleParams),
+    };
+
+    await processTransaction(tx);
+  }
+
+  const swapUniswapExactInputSingle = async () => {
+    console.log("[Wallit]: getting uniswap allowance...");
+    const allowance = await getAllowance(
+      tokenFrom!, // cEUR
+      currentPKP?.ethAddress, // owner
+      addresses.polygon.uniswap.v3.SwapRouter02, // spender
+      provider,
+    );
+
+    if (allowance.eq(0)) {
+      console.log("[Wallit]: approving maximum allowance for swap...");
+      setTokenToApprove(tokenFrom!);
+      setAmountToSend(String(MaxUint256));
+      setTargetAddress(addresses.polygon.uniswap.v3.SwapRouter02);
+
+      console.log("[Wallit]: approving uniswap...");
+      console.log("Token From", tokenFrom);
+      console.log("Token To", tokenTo);
+      console.log("Amount To Swap", amountToSend);
+      console.log("Target Address", targetAddress);
+
+      const tx = await approveERC20WithPKP();
+    } else {
+      console.log("[Wallit]: uniswap already approved...");
+    }
+
+    const swapDescription = {
+      tokenIn: tokenFrom,
+      tokenOut: tokenTo,
+      recipient: currentPKP?.ethAddress,
+      amountIn: parseEther(String(amountToSwap)),
+      amountOutMinimum: 0,
+      sqrtPriceLimitX96: 0,
+      fee: 500,
+    };
+
+    console.log("[testSDK]: executing trade on celo uniswap...");
+    const tx = await executeUniswapV3SwapExactInputSingle(addresses.polygon.uniswap.v3.SwapRouter02, swapDescription);
+    console.log("[testSDK]: sent swap transaction... ");
+  };
+
+  // Send ETH with PKP
+
+  async function wrapETHWithPKP() {
+    notification.info("Wrap ETH with PKP");
+    console.log("Current PKP", currentPKP);
+    const iface = new Interface(["function deposit()"]);
+    const data = iface.encodeFunctionData("deposit", []);
+
+    const tx = {
+      to: addresses.polygon.wmatic, // spender,
+      nonce: await provider.getTransactionCount(currentPKP?.ethAddress!),
+      value: parseEther(amountToSend),
+      gasPrice: await provider.getGasPrice(),
+      gasLimit: 5000000,
+      chainId: (await provider?.getNetwork()).chainId,
+      data: data,
+    };
+
+    await processTransaction(tx);
+  }
+
+  async function unwrapETHWithPKP() {
+    notification.info("UWrap ETH with PKP");
+    console.log("Current PKP", currentPKP);
+    const iface = new Interface(["function withdraw(uint)"]);
+    const data = iface.encodeFunctionData("withdraw", [amountToSend]);
+
+    const tx = {
+      to: addresses.polygon.wmatic, // spender,
+      nonce: await provider.getTransactionCount(currentPKP?.ethAddress!),
+      value: 0,
+      gasPrice: await provider.getGasPrice(),
+      gasLimit: 5000000,
+      chainId: (await provider?.getNetwork()).chainId,
+      data: data,
+    };
+
+    await processTransaction(tx);
   }
 
   async function sendETHWithPKP() {
@@ -323,12 +572,6 @@ const Home: NextPage = () => {
       v: result.recid,
     });
 
-    const encodedSplitSig = splitSignature({
-      r: "0x" + result.r,
-      s: "0x" + result.s,
-      v: result.recid,
-    });
-
     setSignature(encodedSig);
     console.log("signature", encodedSig);
 
@@ -359,7 +602,7 @@ const Home: NextPage = () => {
     console.log("signedTransaction", signedTransaction);
 
     const transaction = await sendSignedTransaction(signedTransaction, provider);
-    txData(transaction);
+    notification.success("Transaction sent");
   }
 
   async function approveERC20WithPKP() {
@@ -368,10 +611,16 @@ const Home: NextPage = () => {
     const iface = new Interface(["function approve(address,uint256) returns (bool)"]);
     const data = iface.encodeFunctionData("approve", [targetAddress, amountToSend]);
 
+    let amountToApprove;
+    if (amountToSend === String(MaxUint256)) {
+      amountToApprove = MaxUint256;
+    } else {
+      amountToApprove = parseEther(amountToSend);
+    }
     const tx = {
       to: tokenToApprove,
       nonce: await provider.getTransactionCount(currentPKP?.ethAddress!),
-      value: parseEther(amountToSend),
+      value: amountToApprove,
       gasPrice: await provider.getGasPrice(),
       gasLimit: 5000000,
       chainId: (await provider?.getNetwork()).chainId,
@@ -453,14 +702,24 @@ const Home: NextPage = () => {
     const signedTransaction = ethers.utils.serializeTransaction(tx, encodedSig);
     console.log("signedTransaction", signedTransaction);
 
-    await sendSignedTransaction(signedTransaction, provider);
+    const txSend = await sendSignedTransaction(signedTransaction, provider);
+    txSend.wait().then((receipt: any) => {
+      console.log("receipt", receipt);
+      notification.success("Transaction sent");
+    });
   }
 
-  async function getAllowanceERC20() {
+  const getAllowance = async (
+    tokenAddress: string,
+    owner: any,
+    spender: string,
+    provider: ethers.Signer | ethers.providers.Provider | undefined,
+  ) => {
     const abi = ["function allowance(address,address) view returns (uint256)"];
-    const contract = new Contract(tokenToApprove, abi, provider);
-    return await contract.allowance(currentPKP?.ethAddress, targetAddress);
-  }
+
+    const contract = new Contract(tokenAddress, abi, provider);
+    return await contract.allowance(owner, spender);
+  };
 
   async function transferERC20WithPKP() {
     console.log("Current PKP", currentPKP);
@@ -559,6 +818,7 @@ const Home: NextPage = () => {
   /**
    * Use wagmi to connect one's eth wallet and then request a signature from one's wallet
    */
+
   async function handleConnectWallet(c: any) {
     const { account, chain, connector } = await connectAsync(c);
     try {
@@ -740,9 +1000,9 @@ const Home: NextPage = () => {
         throw new Error("Minting failed");
       }
       const newPKP: IRelayPKP = {
-        tokenId: response.pkpTokenId,
-        publicKey: response.pkpPublicKey,
-        ethAddress: response.pkpEthAddress,
+        tokenId: response.pkpTokenId!,
+        publicKey: response.pkpPublicKey!,
+        ethAddress: response.pkpEthAddress!,
       };
 
       // Add new PKP to list of PKPs
@@ -765,8 +1025,8 @@ const Home: NextPage = () => {
    * Generate session sigs for current PKP and auth method
    */
   async function createSession(pkp: IRelayPKP) {
+    setWallitDescription("");
     setView(Views.CREATING_SESSION);
-
     try {
       // Get session signatures
       const provider = litAuthClient?.getProvider(currentProviderType!);
@@ -907,19 +1167,18 @@ const Home: NextPage = () => {
     return null;
   }
 
-  const closeModalAndRemoveContents = () => {
-    setName("");
-    setDescription("");
-    setImageUrl("");
-  };
-
   return (
     <>
       <Head>
-        <title>Lit Auth Client</title>
-        <meta name="description" content="Create a PKP with just a Google account" />
-        <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <link rel="icon" href="/favicon.ico" />
+        <title>▣ W A L L I T</title>
+        <meta name="description" content="Lines Open Board" />
+        <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+        <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
+        <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
+        <link rel="manifest" href="/site.webmanifest" />
+        <link rel="mask-icon" href="/safari-pinned-tab.svg" color="#5bbad5" />
+        <meta name="msapplication-TileColor" content="#da532c" />
+        <meta name="theme-color" content="#ffffff" />
       </Head>
       <div className="flex items-center flex-col pt-10 text-center">
         {view === Views.ERROR && (
@@ -1084,32 +1343,15 @@ const Home: NextPage = () => {
         )}
         {view === Views.SESSION_CREATED && (
           <>
-            <div>
-              <p className="text-2xl font-semibold">
-                <Address address={currentPKP?.ethAddress} format="long" />
-              </p>
-              <MetaMaskAvatar address={currentPKP?.ethAddress} size={150} />
+            <div className="text-center items-center">
+              <div className="m-2">
+                <MetaMaskAvatar address={String(currentPKP?.ethAddress)} size={200} />
+                <div className="text-4xl text-center font-bold Capitalize mb-2">{wallitDescription!}</div>
+              </div>
             </div>
-            <p className="text-8xl font-semibold break-all "> 💲 {balance?.formatted}</p>
-
-            <div className="w-fit">
-              <p>Change Address</p>
-              <select
-                className="select select-bordered"
-                onChange={async e => {
-                  createSession(pkps.find(p => p.ethAddress === e.target.value));
-                }}
-                z
-              >
-                {pkps.map(pkp => (
-                  <option key={pkp.ethAddress} value={pkp.ethAddress}>
-                    {pkp.ethAddress}
-                  </option>
-                ))}
-              </select>
+            <div className="text-center">
+              <p className="text-6xl font-medium break-all mb-5">💲{balance}</p>
             </div>
-            <hr></hr>
-
             <div className="flex flex-row">
               <label htmlFor="send-modal" className="btn btn-circle m-5">
                 <ArrowRightCircleIcon />
@@ -1132,23 +1374,27 @@ const Home: NextPage = () => {
                     required
                     placeholder="Receiver "
                   />
+
                   <button onClick={sendETHWithPKP} className="btn btn-primary">
                     Send ETH
                   </button>
-                  <div className="modal-action">
-                    <label htmlFor="send-modal" className="btn">
-                      Close
-                    </label>
-                  </div>
-                </div>
-              </div>
-              <label htmlFor="approve-modal" className="btn btn-circle m-5">
-                <CheckBadgeIcon />
-              </label>
-              <input type="checkbox" id="approve-modal" className="modal-toggle" />
-              <div className="modal">
-                <div className="modal-box">
-                  <h3 className="font-bold text-lg">ERC20</h3>
+                  <div className="divider" />
+                  <input
+                    onChange={e => setAmountToSend(e.target.value)}
+                    className="input input-bordered w-full mb-4"
+                    type="text"
+                    required
+                    placeholder="Enter amount to send"
+                  />
+
+                  <button onClick={wrapETHWithPKP} className="btn btn-primary">
+                    Wrap ETH
+                  </button>
+                  <button onClick={unwrapETHWithPKP} className="btn btn-primary">
+                    Unwrap ETH
+                  </button>
+                  <div className="divider" />
+                  <h3 className="font-bold text-lg">Send ERC20</h3>
                   <input
                     onChange={e => setAmountToSend(e.target.value)}
                     className="input input-bordered w-full mb-4"
@@ -1177,27 +1423,28 @@ const Home: NextPage = () => {
                     Transfer
                   </button>
                   <div className="modal-action">
-                    <label htmlFor="approve-modal" className="btn">
+                    <label htmlFor="send-modal" className="btn">
                       Close
                     </label>
                   </div>
                 </div>
               </div>
+
               <label htmlFor="receive-modal" className="btn btn-circle m-5">
                 <ArrowDownCircleIcon />
               </label>
               <input type="checkbox" id="receive-modal" className="modal-toggle" />
               <div className="modal">
                 <div className="modal-box">
-                  <QRCodeCanvas
-                    className="text-center"
-                    id="qrCode"
-                    value={String(currentPKP?.ethAddress)}
-                    size={300}
-                    style={{ alignItems: "center" }}
-                    /* bgColor={"#00ff00"} */ level={"H"}
-                  />
-
+                  <div className="mx-auto text-center items-center w-fit">
+                    <QRCodeCanvas
+                      id="qrCode"
+                      value={String(qrCodeUrl)}
+                      size={300}
+                      style={{ alignItems: "center" }}
+                      /* bgColor={"#00ff00"} */ level={"H"}
+                    />
+                  </div>
                   <div className="modal-action">
                     <label htmlFor="receive-modal" className="btn">
                       Close
@@ -1245,12 +1492,100 @@ const Home: NextPage = () => {
                   </div>
                 </div>
               </div>
+              <label htmlFor="swap-modal" className="btn btn-circle m-5">
+                <ArrowPathIcon />
+              </label>
+              <input type="checkbox" id="swap-modal" className="modal-toggle" />
+              <div className="modal">
+                <div className="modal-box">
+                  <h3 className="font-bold text-lg">Swap ERC20</h3>
+
+                  <input
+                    onChange={e => setTokenFrom(e.target.value)}
+                    className="input input-bordered w-full mb-4"
+                    type="text"
+                    placeholder="Token From"
+                  />
+                  <input
+                    onChange={e => setTokenTo(e.target.value)}
+                    className="input input-bordered w-full mb-4"
+                    type="text"
+                    placeholder="Token To"
+                  />
+                  <input
+                    onChange={e => setAmountToSwap(e.target.value)}
+                    className="input input-bordered w-full mb-4"
+                    type="text"
+                    placeholder="Amount To Swap"
+                  />
+
+                  <button onClick={swapUniswapExactInputSingle} className="btn btn-primary">
+                    Swap
+                  </button>
+
+                  <div className="modal-action">
+                    <label htmlFor="swap-modal" className="btn">
+                      Close
+                    </label>
+                  </div>
+                </div>
+              </div>
+              <a href={zapperUrl!} target="_blank" className="btn btn-circle m-5">
+                <ArchiveBoxIcon />
+              </a>
             </div>
+            <Address address={currentPKP?.ethAddress} format="long" />
+
+            {yourWallit === "0x0000000000000000000000000000000000000000" && yourWallit ? (
+              <div>
+                <button
+                  className="btn btn-primary my-5"
+                  onClick={async () => {
+                    createWallit();
+                  }}
+                >
+                  Name your account
+                </button>
+              </div>
+            ) : null}
+            <div className="w-fit mt-10 text-left">
+              <p className="text-left m-5">Switch Account</p>
+              <select
+                className="select select-bordered"
+                onChange={async e => {
+                  createSession(pkps.find(p => p.ethAddress === e.target.value));
+                }}
+                z
+              >
+                {pkps.map(pkp => (
+                  <option key={pkp.ethAddress} value={pkp.ethAddress}>
+                    {pkp.ethAddress}
+                  </option>
+                ))}
+              </select>
+              <p className="text-left m-5">Change Name</p>
+
+              <input
+                className="input input-primary min-w-max"
+                type="text"
+                placeholder="Name your Wallit"
+                onChange={e => {
+                  setWallitName(e.target.value);
+                }}
+              />
+              <button
+                className="btn btn-primary  mx-2"
+                onClick={() => {
+                  const tx = txData(executeSetWallitName?.writeAsync?.());
+                }}
+              >
+                set name
+              </button>
+            </div>
+
             <div className="collapse">
               <input type="checkbox" />
-              <div className="collapse-title">
-                <button className="btn btn-primary">DON'T TRUST VERIFY!</button>
-              </div>
+              <div className="collapse-title">👇🏻DON'T TRUST VERIFY!</div>
               <div className="collapse-content bg-secondary rounded-lg">
                 <p className="text-lg">Write a message and Sign it with your PKP</p>
                 <input

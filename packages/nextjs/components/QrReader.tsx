@@ -42,7 +42,7 @@ export default function QrReader({ onConnect }: IProps) {
     <div className="container">
       {show ? (
         <Fragment>
-          {loading && <div css={{ position: "absolute" }} />}
+          {loading && <div className="flex" />}
           <div className="qrVideoMask">
             <ReactQrReader
               onLoad={() => setLoading(false)}
@@ -56,7 +56,7 @@ export default function QrReader({ onConnect }: IProps) {
       ) : (
         <div className="container qrPlaceholder">
           <Image src="/icons/qr-icon.svg" width={100} height={100} alt="qr code icon" className="qrIcon" />
-          <button color="gradient" css={{ marginTop: "$10", width: "100%" }} onClick={onShowScanner}>
+          <button className="btn btn-primary" onClick={onShowScanner}>
             Scan QR code
           </button>
         </div>

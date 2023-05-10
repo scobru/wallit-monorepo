@@ -43,14 +43,14 @@ export const Footer = () => {
             </div>
             <span>·</span>
             <div>
-              Built with <HeartIcon className="inline-block h-4 w-4" /> at 🏰{" "}
+              Built with <HeartIcon className="inline-block h-4 w-4" /> by{" "}
               <a
-                href="https://buidlguidl.com/"
+                href="https://github.com/scobru/"
                 target="_blank"
                 rel="noreferrer"
                 className="underline underline-offset-2"
               >
-                BuidlGuidl
+                Scobru
               </a>
             </div>
             <span>·</span>

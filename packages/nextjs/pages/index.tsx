@@ -9,7 +9,6 @@ import { addresses } from "../utils/constant";
 import { MaxUint256 } from "@ethersproject/constants";
 import { ProviderType } from "@lit-protocol/constants";
 import {
-  BaseProvider,
   DiscordProvider,
   EthWalletProvider,
   GoogleProvider,
@@ -20,35 +19,27 @@ import {
 } from "@lit-protocol/lit-auth-client";
 import { LitNodeClient } from "@lit-protocol/lit-node-client";
 import { AuthMethod, AuthSig, IRelayPKP, SessionSigs } from "@lit-protocol/types";
-import { SwapWidget } from "@uniswap/widgets";
 import "@uniswap/widgets/fonts.css";
 import { multicall } from "@wagmi/core";
 import { P } from "@wagmi/core/dist/index-35b6525c";
-import { promises } from "dns";
 import { Contract, ethers } from "ethers";
 import {
   Interface,
   computePublicKey,
-  formatEther,
-  formatUnits,
   joinSignature,
   parseEther,
   parseUnits,
   recoverAddress,
   recoverPublicKey,
-  splitSignature,
   verifyMessage,
 } from "ethers/lib/utils.js";
 import { NextPage } from "next";
 import { QRCodeCanvas } from "qrcode.react";
-import toast from "react-hot-toast";
 import { MetaMaskAvatar } from "react-metamask-avatar";
 import {
   Connector,
   useAccount,
-  useBalance,
   useBlockNumber,
-  useConnect,
   useContractWrite,
   useDisconnect,
   usePrepareContractWrite,
@@ -59,12 +50,10 @@ import { erc20ABI } from "wagmi";
 import {
   ArchiveBoxIcon,
   ArrowDownCircleIcon,
-  ArrowDownRightIcon,
-  ArrowLeftCircleIcon,
   ArrowPathIcon,
   ArrowRightCircleIcon,
   ArrowUpCircleIcon,
-  CheckBadgeIcon,
+  ArrowsRightLeftIcon,
 } from "@heroicons/react/24/outline";
 import { Address } from "~~/components/scaffold-eth";
 import { useDeployedContractInfo } from "~~/hooks/scaffold-eth";
@@ -98,7 +87,6 @@ const Home: NextPage = () => {
   const { data: signer } = useSigner();
   const account = useAccount();
   const signerAddress = account?.address;
-
   const provider = useProvider();
   const router = useRouter();
   const chainName = "polygon";
@@ -144,8 +132,8 @@ const Home: NextPage = () => {
   const [amountToSwap, setAmountToSwap] = useState<string>();
   const [tokenList, setTokenList] = useState<string[]>([]);
   const [tokenInWallet, setTokenInWallet] = useState<string[]>([]);
-
-  const [gasRequired, setGasRequired] = useState<string>();
+  const zapperUrl = "https://zapper.xyz/account/" + currentPKP?.ethAddress;
+  const qrCodeUrl = "ethereum:" + currentPKP?.ethAddress + "/pay?chain_id=137value=0";
 
   const executeSetWallitNamePrepared = usePrepareContractWrite({
     address: String(yourWallit),
@@ -155,9 +143,6 @@ const Home: NextPage = () => {
   });
 
   const executeSetWallitName = useContractWrite(executeSetWallitNamePrepared.config);
-
-  const zapperUrl = "https://zapper.xyz/account/" + currentPKP?.ethAddress;
-  const qrCodeUrl = "ethereum:" + currentPKP?.ethAddress + "/pay?chain_id=137value=0";
 
   useEffect(() => {
     if (wallitCtx && yourWallit != "0x0000000000000000000000000000000000000000" && signer && currentPKP?.ethAddress) {
@@ -181,19 +166,20 @@ const Home: NextPage = () => {
   }, [block, signer, provider, wallitCtx, currentPKP?.ethAddress, balance]);
 
   // Use wagmi to connect one's eth wallet
-  const { connectAsync, connectors } = useConnect({
+  /* const { connectAsync } = useConnect({
     onError(error) {
       console.error(error);
       setError(error);
     },
-  });
+  }); */
+
   const { isConnected, connector, address } = useAccount();
   const { disconnectAsync } = useDisconnect();
 
   async function fetchTokenList() {
     console.log("Fetch Token List");
-    let response = await fetch("https://gateway.ipfs.io/ipns/tokens.uniswap.org");
-    let tokenListJSON = await response.json();
+    const response = await fetch("https://gateway.ipfs.io/ipns/tokens.uniswap.org");
+    const tokenListJSON = await response.json();
     // filter tokenlist for chainId params
     const tokens = tokenListJSON.tokens.filter((token: { chainId: number }) => token.chainId == 137);
     setTokenList(tokens);
@@ -202,16 +188,11 @@ const Home: NextPage = () => {
 
   async function fetchTokenInWallet() {
     if (tokenList.length > 0) {
-      let id = notification.loading("Fetching Token In Wallet, Please Wait...");
+      const id = notification.loading("Fetching Token In Wallet, Please Wait...");
 
-      let _tokens = [];
+      const _tokens = [];
 
-      let _wagmigotchiContract = {
-        address: "",
-        abi: erc20ABI,
-      };
-
-      let _contractList = [];
+      const _contractList = [];
 
       for (let i = 0; i < tokenList.length; i++) {
         _contractList.push({
@@ -391,15 +372,15 @@ const Home: NextPage = () => {
   };
 
   async function sendCustomTxWithPKP() {
-    let id = notification.info("Send Custom Transaction");
+    const id = notification.info("Send Custom Transaction");
 
     const tx = {
       to: targetAddress,
-      nonce: await provider.getTransactionCount(currentPKP?.ethAddress!),
+      nonce: await provider.getTransactionCount(currentPKP?.ethAddress as string),
       value: parseEther(amountToSend),
       gasPrice: await provider.getGasPrice(),
       gasLimit: 5000000,
-      chainId: (await provider?.getNetwork()).chainId,
+      chainId: (await provider.getNetwork()).chainId,
       data: "0x" + customTx,
     };
 
@@ -446,12 +427,12 @@ const Home: NextPage = () => {
       sqrtPriceLimitX96: any;
     },
   ) {
-    let id = notification.info("Execute Swap");
+    const id = notification.info("Execute Swap");
     console.log(generateSwapExactInputSingleCalldata(exactInputSingleParams));
 
     const tx = {
       to: swapRouterAddress,
-      nonce: await provider.getTransactionCount(currentPKP?.ethAddress!),
+      nonce: await provider.getTransactionCount(currentPKP?.ethAddress as string),
       value: 0,
       gasPrice: await provider.getGasPrice(),
       gasLimit: 0,
@@ -479,16 +460,16 @@ const Home: NextPage = () => {
   };
 
   async function approveERC20WithPKP() {
-    let id = notification.info("Approving ERC20 Token");
+    const id = notification.info("Approving ERC20 Token");
 
     const iface = new Interface(["function approve(address,uint256) returns (bool)"]);
     const data = iface.encodeFunctionData("approve", [targetAddress, parseEther(amountToSend)]);
 
     console.log("data", data);
 
-    let tx = {
+    const tx = {
       to: tokenToApprove,
-      nonce: await provider.getTransactionCount(currentPKP?.ethAddress!),
+      nonce: await provider.getTransactionCount(currentPKP?.ethAddress as string),
       value: 0,
       gasPrice: await provider.getGasPrice(),
       gasLimit: 500000,
@@ -526,7 +507,7 @@ const Home: NextPage = () => {
       console.log("Amount To Swap", amountToSend);
       console.log("Target Address", targetAddress);
 
-      const tx = await approveERC20WithPKP();
+      await approveERC20WithPKP();
     } else {
       console.log("[Wallit]: uniswap already approved...");
     }
@@ -557,14 +538,14 @@ const Home: NextPage = () => {
   // Send ETH with PKP
 
   async function wrapETHWithPKP() {
-    let id = notification.info("Wrap ETH with PKP");
+    const id = notification.info("Wrap ETH with PKP");
     console.log("Current PKP", currentPKP);
     const iface = new Interface(["function deposit()"]);
     const data = iface.encodeFunctionData("deposit", []);
 
-    let tx = {
+    const tx = {
       to: addresses.polygon.wmatic, // spender,
-      nonce: await provider.getTransactionCount(currentPKP?.ethAddress!),
+      nonce: await provider.getTransactionCount(currentPKP?.ethAddress as string),
       value: parseEther(amountToSend),
       gasPrice: await provider.getGasPrice(),
       gasLimit: 0,
@@ -580,14 +561,14 @@ const Home: NextPage = () => {
   }
 
   async function unwrapETHWithPKP() {
-    let id = notification.info("UWrap ETH with PKP");
+    const id = notification.info("UWrap ETH with PKP");
     console.log("Current PKP", currentPKP);
     const iface = new Interface(["function withdraw(uint)"]);
-    const data = iface.encodeFunctionData("withdraw", [amountToSend]);
+    const data = iface.encodeFunctionData("withdraw", [parseEther(amountToSend)]);
 
-    let tx = {
+    const tx = {
       to: addresses.polygon.wmatic, // spender,
-      nonce: await provider.getTransactionCount(currentPKP?.ethAddress!),
+      nonce: await provider.getTransactionCount(currentPKP?.ethAddress as string),
       value: 0,
       gasPrice: await provider.getGasPrice(),
       gasLimit: 0,
@@ -601,11 +582,11 @@ const Home: NextPage = () => {
   }
 
   const sendETHWithPKP = async () => {
-    let id = notification.info("Sending ETH with PKP");
+    const id = notification.info("Sending ETH with PKP");
 
-    let tx = {
+    const tx = {
       to: targetAddress,
-      nonce: await provider.getTransactionCount(currentPKP?.ethAddress!),
+      nonce: await provider.getTransactionCount(currentPKP?.ethAddress as string),
       value: parseEther(amountToSend),
       gasPrice: await provider.getGasPrice(),
       gasLimit: 0,
@@ -617,11 +598,11 @@ const Home: NextPage = () => {
 
     console.log("tx:", tx);
     notification.remove(id);
-    const processTx = await processTransaction(tx);
+    await processTransaction(tx);
   };
 
   async function transferERC20WithPKP() {
-    let id = notification.info("Transfer ERC20 with PKP");
+    const id = notification.info("Transfer ERC20 with PKP");
 
     let decimals = 0;
 
@@ -642,9 +623,9 @@ const Home: NextPage = () => {
     const iface = new Interface(["function transfer(address,uint256) returns (bool)"]);
     const data = iface.encodeFunctionData("transfer", [targetAddress, _amountToSend]);
 
-    let tx = {
+    const tx = {
       to: tokenToApprove,
-      nonce: await provider.getTransactionCount(currentPKP?.ethAddress!),
+      nonce: await provider.getTransactionCount(currentPKP?.ethAddress as string),
       value: 0,
       gasPrice: await provider.getGasPrice(),
       gasLimit: 0,
@@ -663,7 +644,7 @@ const Home: NextPage = () => {
    * Use wagmi to connect one's eth wallet and then request a signature from one's wallet
    */
 
-  async function handleConnectWallet(c: any) {
+  /* async function handleConnectWallet(c: any) {
     const { account, chain, connector } = await connectAsync(c);
     try {
       await authWithWallet(account, connector!);
@@ -672,25 +653,27 @@ const Home: NextPage = () => {
       setError(err);
       setView(Views.ERROR);
     }
-  }
+  } */
 
   /**
    * Begin auth flow with Google
    */
-  async function authWithGoogle() {
+
+  /* async function authWithGoogle() {
     setCurrentProviderType(ProviderType.Google);
     const provider = litAuthClient?.initProvider<GoogleProvider>(ProviderType.Google);
     await provider?.signIn();
-  }
+  } */
 
   /**
    * Begin auth flow with Discord
    */
-  async function authWithDiscord() {
+
+  /* async function authWithDiscord() {
     setCurrentProviderType(ProviderType.Discord);
     const provider = litAuthClient?.initProvider<DiscordProvider>(ProviderType.Discord);
     await provider?.signIn();
-  }
+  } */
 
   /**
    * Request a signature from one's wallet
@@ -724,7 +707,7 @@ const Home: NextPage = () => {
     setView(Views.FETCHED);
   }
 
-  async function registerWithWebAuthn() {
+  /* async function registerWithWebAuthn() {
     setView(Views.REGISTERING);
 
     try {
@@ -757,7 +740,7 @@ const Home: NextPage = () => {
       setError(err);
       setView(Views.ERROR);
     }
-  }
+  } */
 
   async function authenticateWithWebAuthn() {
     setView(Views.AUTHENTICATING);
@@ -771,7 +754,7 @@ const Home: NextPage = () => {
       setView(Views.CREATING_SESSION);
 
       const sessionSigs = await provider.getSessionSigs({
-        pkpPublicKey: currentPKP?.publicKey!,
+        pkpPublicKey: currentPKP?.publicKey as string,
         authMethod,
         sessionSigsParams: {
           chain: chainName,
@@ -1027,9 +1010,10 @@ const Home: NextPage = () => {
       <div className="flex items-center flex-col pt-10 text-center">
         {view === Views.ERROR && (
           <>
-            <h1>Error</h1>
-            <p>{error.message}</p>
+            <h1 className="text-4xl">🤖</h1>
+            <p className="text-xl">{error.message}</p>
             <button
+              className="btn btn-primary my-5"
               onClick={() => {
                 if (sessionSigs) {
                   setView(Views.SESSION_CREATED);
@@ -1080,7 +1064,7 @@ const Home: NextPage = () => {
               ) : (
                 <>
                   {/* If eth wallet is not connected, show all login options */}
-                  Connect Your Wallet First ⚠️
+                  <h1 className="animate-pulse text-lg">Connect Your Wallet First ⚠️</h1>
                   {/* <button className="btn btn-sm" onClick={authWithGoogle}>
                     Google
                   </button>
@@ -1113,7 +1097,7 @@ const Home: NextPage = () => {
         )}
         {view === Views.REQUEST_AUTHSIG && (
           <>
-            <h1>Check your wallet</h1>
+            <h1 className="text-2xl font-bold animate-ping">Check your wallet</h1>
           </>
         )}
         {view === Views.REGISTERING && (
@@ -1137,7 +1121,7 @@ const Home: NextPage = () => {
         )}
         {view === Views.FETCHING && (
           <>
-            <h1>Fetching your PKPs...</h1>
+            <h1 className="text-2xl font-bold animate-ping">Fetching your PKPs...</h1>
           </>
         )}
         {view === Views.FETCHED && (
@@ -1172,17 +1156,17 @@ const Home: NextPage = () => {
         )}
         {view === Views.MINTING && (
           <>
-            <h1>Minting your PKP...</h1>
+            <h1 className="text-2xl font-bold animate-ping">Minting your PKP...</h1>
           </>
         )}
         {view === Views.MINTED && (
           <>
-            <h1>Minted!</h1>
+            <h1 className="text-2xl font-bold animate-bounce">Minted!</h1>
           </>
         )}
         {view === Views.CREATING_SESSION && (
           <>
-            <h1>Saving your session...</h1>
+            <h1 className="text-2xl font-bold animate-zoom">Saving your session...</h1>
           </>
         )}
         {view === Views.SESSION_CREATED && (
@@ -1190,22 +1174,22 @@ const Home: NextPage = () => {
             <div className="text-center items-center">
               <div className="m-5">
                 <MetaMaskAvatar address={String(currentPKP?.ethAddress)} size={200} className="hover:animate-spin" />
-                <div className="text-4xl text-center font-bold Capitalize mb-2 hover:animate-zoom">
+                <div className="text-6xl text-center font-extrabold Capitalize mb-2 hover:animate-zoom">
                   {wallitDescription!}
                 </div>
               </div>
             </div>
             <Address address={currentPKP?.ethAddress} format="long" />
-
-            <div className="text-center">
-              <p className="text-6xl font-medium break-all mb-5 hover:animate-pulse-fast">
+            <div className="items-center">
+              <p className="text-6xl font-semibold break-all mb-5 hover:animate-pulse-fast mx-5">
                 💲{Number(balance).toFixed(4)}
+                <div className="btn btn-circle   text-2xl mx-10 " onClick={async () => fetchTokenInWallet()}>
+                  <ArrowPathIcon className="hover:animate-spin" />
+                </div>
               </p>
             </div>
-            <div className="btn btn-primary hover:btn-secondary  mx-2 my-5" onClick={async () => fetchTokenInWallet()}>
-              Refresh
-            </div>
-            <div className="flex flex-row m-2">
+
+            <div className="flex flex-row mx-10">
               <label htmlFor="send-modal" className="btn btn-circle m-5">
                 <ArrowRightCircleIcon className="hover:animate-zoom" />
               </label>
@@ -1231,7 +1215,7 @@ const Home: NextPage = () => {
                   <button onClick={sendETHWithPKP} className="btn btn-primary">
                     Send ETH
                   </button>
-                  <div className="divider" />
+                  <div className="divider mb-5 mt-5" />
                   <h3 className="font-bold text-lg m-2">Wrap/Unwrap</h3>
 
                   <input
@@ -1248,7 +1232,7 @@ const Home: NextPage = () => {
                   <button onClick={unwrapETHWithPKP} className="btn btn-primary">
                     Unwrap ETH
                   </button>
-                  <div className="divider" />
+                  <div className="divider mb-5 mt-5" />
                   <h3 className="font-bold text-lg m-2">Send ERC20</h3>
                   <input
                     onChange={e => setAmountToSend(e.target.value)}
@@ -1332,7 +1316,7 @@ const Home: NextPage = () => {
                     type="text"
                     placeholder="Amount to send"
                   />
-                  <a href="https://abi.hashex.org/" target="_blank" className="underline">
+                  <a href="https://abi.hashex.org/" target="_blank" className="underline" rel="noreferrer">
                     Calculate TxData from ABI
                   </a>
 
@@ -1354,7 +1338,7 @@ const Home: NextPage = () => {
                 </div>
               </div>
               <label htmlFor="swap-modal" className="btn btn-circle m-5">
-                <ArrowPathIcon className="hover:animate-zoom" />
+                <ArrowsRightLeftIcon className="hover:animate-spin" />
               </label>
               <input type="checkbox" id="swap-modal" className="modal-toggle" />
               <div className="modal">
@@ -1410,9 +1394,25 @@ const Home: NextPage = () => {
                   </div>
                 </div>
               </div>
-              <a href={zapperUrl!} target="_blank" className="btn btn-circle m-5">
+              <a href={zapperUrl!} target="_blank" className="btn btn-circle m-5" rel="noreferrer">
                 <ArchiveBoxIcon className="hover:animate-zoom" />
               </a>
+            </div>
+            <div className="flex items-center justify-between mb-10 mt-10">
+              <p className="text-left  mx-2"> ↩️ Switch </p>
+              <select
+                className="select select-bordered"
+                onChange={async e => {
+                  createSession(pkps.find(p => p.ethAddress === e.target.value));
+                }}
+                z
+              >
+                {pkps.map(pkp => (
+                  <option key={pkp.ethAddress} value={pkp.ethAddress}>
+                    {pkp.ethAddress}
+                  </option>
+                ))}
+              </select>
             </div>
             {tokenInWallet && (
               <div className="grid md:grid-cols-2 sm:grid-cols lg:grid-cols-2 gap-4 my-10">
@@ -1452,42 +1452,31 @@ const Home: NextPage = () => {
               </div>
             ) : null}
             <div className="w-fit mt-10 text-left">
-              <p className="text-left m-5">Switch Account</p>
-              <select
-                className="select select-bordered"
-                onChange={async e => {
-                  createSession(pkps.find(p => p.ethAddress === e.target.value));
-                }}
-                z
-              >
-                {pkps.map(pkp => (
-                  <option key={pkp.ethAddress} value={pkp.ethAddress}>
-                    {pkp.ethAddress}
-                  </option>
-                ))}
-              </select>
-              <p className="text-left m-5">Change Name</p>
-
-              <input
-                className="input input-primary min-w-max"
-                type="text"
-                placeholder="Name your Wallit"
-                onChange={e => {
-                  setWallitName(e.target.value);
-                }}
-              />
-              <button
-                className="btn btn-primary  mx-2"
-                onClick={() => {
-                  const tx = txData(executeSetWallitName?.writeAsync?.());
-                }}
-              >
-                set name
-              </button>
+              <div className="mx-4">
+                <h1 className="text-lg">Give a name to yuour Wallit 🤖</h1>
+                <div className="card card-compact mb-10">
+                  <input
+                    className="input input-primary w-full  mt-5"
+                    type="text"
+                    placeholder="Name your WALLIT"
+                    onChange={e => {
+                      setWallitName(e.target.value);
+                    }}
+                  />
+                  <button
+                    className="btn btn-primary  mt-5"
+                    onClick={() => {
+                      txData(executeSetWallitName?.writeAsync?.());
+                    }}
+                  >
+                    set name
+                  </button>
+                </div>
+              </div>
             </div>
             <div className="collapse">
               <input type="checkbox" />
-              <div className="collapse-title">👇🏻DON'T TRUST VERIFY!</div>
+              <div className="collapse-title text-2xl font-extrabold">👇🏻DO NOT TRUST VERIFY!</div>
               <div className="collapse-content bg-secondary rounded-lg">
                 <p className="text-lg">Write a message and Sign it with your PKP</p>
                 <input

@@ -46,6 +46,7 @@
     "react-metamask-avatar": "^1.2.1",
     "react-qr-reader-es6": "^2.2.1-2",
     "react-redux": "^8.0.5",
+    "sharp": "^0.32.1",
     "siwe": "^2.1.4",
     "use-debounce": "^8.0.4",
     "usehooks-ts": "^2.7.2",

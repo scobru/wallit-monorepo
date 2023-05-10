@@ -2,9 +2,13 @@
 
 WALLIT is a decentralized wallet that utilizes Lit Protocol to create infinite private keys, removing the need for users to manage and store their own private keys. Lit Protocol uses a unique technology called Lit PKP(Programmable Key Pair) to securely store and manage private keys.
 
+## WALLIT is available on <mark style="color:blue;">POLYGON</mark>.
+
+### [https://wallit.vercel.app](./#https-wallit.vercel.app)
 
 
-## Wallit Features
+
+## Features
 
 1. Ethereum Wallet: Store, send, and receive Ether (ETH) and ERC-20, ERC-721, and ERC-1155 tokens.
 2. Multi-account management: Create and manage multiple Ethereum addresses within a single MetaMask account.

@@ -410,7 +410,7 @@ const Home: NextPage = () => {
     ]);
   }
 
-  async function executeUniswapV3SwapExactInputSingle(
+  /*  async function executeUniswapV3SwapExactInputSingle(
     swapRouterAddress: any,
     exactInputSingleParams: {
       tokenIn: any;
@@ -434,7 +434,7 @@ const Home: NextPage = () => {
     };
 
     await processTransaction(tx);
-  }
+  } */
 
   const swapUniswapExactInputSingle = async () => {
     console.log("[Wallit]: getting uniswap allowance...");

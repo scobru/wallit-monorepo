@@ -1,12 +1,28 @@
 # ▣ WALLIT
 
-WALLIT is a decentralized wallet that utilizes Lit Protocol to create infinite private keys, removing the need for users to manage and store their own private keys. Lit Protocol uses a unique technology called Lit PKP (Private Key Protection) to securely store and manage private keys.
+WALLIT is a decentralized wallet that utilizes Lit Protocol to create infinite private keys, removing the need for users to manage and store their own private keys. Lit Protocol uses a unique technology called Lit PKP(Programmable Key Pair) to securely store and manage private keys.
+
+
+
+## Wallit Features
+
+1. Ethereum Wallet: Store, send, and receive Ether (ETH) and ERC-20, ERC-721, and ERC-1155 tokens.
+2. Multi-account management: Create and manage multiple Ethereum addresses within a single MetaMask account.
+3. Swaps: Swap tokens directly within the MetaMask wallet using decentralized exchanges and aggregators.
+4. Secure key management: Encrypts and stores your private keys locally on your device, ensuring maximum security.
+5. Mobile app: Access Wallit on the go with any browser.
+6. QR code scanner: Scan QR codes to easily receive or send tokens and interact with dApps.
+7. Secure Storage of Private keys by Lit Protocol.
+
+###
 
 ### What is [Lit ](https://litprotocol.com/)PKP?
 
 [Lit ](https://litprotocol.com/)PKP is a technology developed by Lit Protocol to securely manage private keys in a decentralized manner. With Lit PKP, private keys are divided into fragments, encrypted, and stored across multiple nodes in the Lit Protocol network. This ensures that private keys are never fully accessible in any single location, making them much more secure than traditional private key management solutions.
 
-### Features
+##
+
+### Lit Protocol Pros
 
 * Infinite addresses: Users can create an unlimited number of addresses without worrying about managing their private keys.
 * Fast transactions: Transactions are processed quickly and securely on the Lit Protocol network.
@@ -19,9 +35,11 @@ WALLIT is built using the following technologies:
 
 * Lit Protocol: Used to create infinite private keys and process transactions securely and quickly.
 * Lit PKP: A technology developed by Lit Protocol for secure private key management.
-* React: Used to build the user interface of the wallet.
-* Web3.js: Used to interact with the Ethereum network.
+* Nextjs: Used to build the user interface of the wallet.
+* Etherjs: Used to interact with the Ethereum network.
 * Scaffold-eth: A development framework for Ethereum dApps that provides a suite of pre-built contracts, tools, and a local blockchain for testing and development.
+* Hardhat
+* Typescript
 
 ### Installation
 

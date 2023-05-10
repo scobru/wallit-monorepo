@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useState } from "react";
 import Head from "next/head";
+import Image from "next/image";
 import { useRouter } from "next/router";
 import { useScaffoldContractRead, useTransactor } from "../hooks/scaffold-eth";
 import { useScaffoldContractWrite } from "../hooks/scaffold-eth";
+import UniswapIcon from "../uniswap.png";
 import { addresses } from "../utils/constant";
-import { BigNumber } from "@ethersproject/bignumber";
 import { MaxUint256 } from "@ethersproject/constants";
 import { ProviderType } from "@lit-protocol/constants";
 import {
@@ -19,13 +20,20 @@ import {
 } from "@lit-protocol/lit-auth-client";
 import { LitNodeClient } from "@lit-protocol/lit-node-client";
 import { AuthMethod, AuthSig, IRelayPKP, SessionSigs } from "@lit-protocol/types";
+import { SwapWidget } from "@uniswap/widgets";
+import "@uniswap/widgets/fonts.css";
+import { multicall } from "@wagmi/core";
 import { P } from "@wagmi/core/dist/index-35b6525c";
+import { promises } from "dns";
 import { Contract, ethers } from "ethers";
 import {
   Interface,
   computePublicKey,
+  formatEther,
+  formatUnits,
   joinSignature,
   parseEther,
+  parseUnits,
   recoverAddress,
   recoverPublicKey,
   splitSignature,
@@ -33,6 +41,7 @@ import {
 } from "ethers/lib/utils.js";
 import { NextPage } from "next";
 import { QRCodeCanvas } from "qrcode.react";
+import toast from "react-hot-toast";
 import { MetaMaskAvatar } from "react-metamask-avatar";
 import {
   Connector,
@@ -46,6 +55,7 @@ import {
   useProvider,
   useSigner,
 } from "wagmi";
+import { erc20ABI } from "wagmi";
 import {
   ArchiveBoxIcon,
   ArrowDownCircleIcon,
@@ -132,6 +142,10 @@ const Home: NextPage = () => {
   const [tokenFrom, setTokenFrom] = useState<string>();
   const [tokenTo, setTokenTo] = useState<string>();
   const [amountToSwap, setAmountToSwap] = useState<string>();
+  const [tokenList, setTokenList] = useState<string[]>([]);
+  const [tokenInWallet, setTokenInWallet] = useState<string[]>([]);
+
+  const [gasRequired, setGasRequired] = useState<string>();
 
   const executeSetWallitNamePrepared = usePrepareContractWrite({
     address: String(yourWallit),
@@ -176,10 +190,88 @@ const Home: NextPage = () => {
   const { isConnected, connector, address } = useAccount();
   const { disconnectAsync } = useDisconnect();
 
-  async function processTransaction(tx) {
-    const serializedTx = ethers.utils.serializeTransaction(tx);
-    const toSign = ethers.utils.arrayify(ethers.utils.keccak256(serializedTx));
+  async function fetchTokenList() {
+    console.log("Fetch Token List");
+    let response = await fetch("https://gateway.ipfs.io/ipns/tokens.uniswap.org");
+    let tokenListJSON = await response.json();
+    // filter tokenlist for chainId params
+    const tokens = tokenListJSON.tokens.filter((token: { chainId: number }) => token.chainId == 137);
+    setTokenList(tokens);
+    console.log("Token List", tokens);
+  }
+
+  async function fetchTokenInWallet() {
+    if (tokenList.length > 0) {
+      let id = notification.loading("Fetching Token In Wallet, Please Wait...");
+
+      let _tokens = [];
+
+      let _wagmigotchiContract = {
+        address: "",
+        abi: erc20ABI,
+      };
+
+      let _contractList = [];
+
+      for (let i = 0; i < tokenList.length; i++) {
+        _contractList.push({
+          address: tokenList[i].address,
+          abi: erc20ABI,
+        });
+      }
+
+      for (let i = 0; i < tokenList.length; i++) {
+        const data = await multicall({
+          contracts: [
+            {
+              ..._contractList[i],
+              functionName: "balanceOf",
+              args: [currentPKP?.ethAddress],
+              chainId: 137,
+            },
+          ],
+        });
+
+        if (Number(data) > 0) {
+          _tokens.push({ ...tokenList[i], balance: data });
+        }
+      }
+
+      if (_tokens.length > 0) {
+        notification.remove(id);
+        notification.success("Token In Wallet Fetched");
+      } else {
+        notification.remove(id);
+        notification.error("No Token In Wallet");
+      }
+
+      setTokenInWallet(_tokens);
+      console.log("Token In Wallet", _tokens);
+    }
+  }
+
+  useEffect(() => {
+    fetchTokenList();
+    fetchTokenInWallet();
+  }, []);
+
+  async function processTransaction(tx: {
+    to: any;
+    nonce: number | undefined;
+    value: ethers.BigNumberish | undefined;
+    gasPrice: ethers.BigNumberish | undefined;
+    gasLimit: ethers.BigNumberish | undefined;
+    chainId: number | undefined;
+    data: ethers.utils.BytesLike | undefined;
+    type?: number | null | undefined;
+    accessList?: ethers.utils.AccessListish | undefined;
+    maxPriorityFeePerGas?: ethers.BigNumberish | undefined;
+    maxFeePerGas?: ethers.BigNumberish | undefined;
+  }) {
+    const serializedTx = ethers.utils.serializeTransaction(await tx);
+    const toSign = ethers.utils.arrayify(ethers.utils.keccak256(await serializedTx));
     const message = serializedTx;
+    let id = notification.info("Create Signature");
 
     const litActionCode = `
         const go = async () => {
@@ -218,14 +310,17 @@ const Home: NextPage = () => {
       v: result.recid,
     });
 
-    const encodedSplitSig = splitSignature({
-      r: "0x" + result.r,
-      s: "0x" + result.s,
-      v: result.recid,
-    });
+    // const encodedSplitSig = splitSignature({
+    //   r: "0x" + result.r,
+    //   s: "0x" + result.s,
+    //   v: result.recid,
+    // });
 
     setSignature(encodedSig);
     console.log("signature", encodedSig);
+
+    notification.remove(id);
+    id = notification.info("Verify signature");
 
     const recoveredPubkey = recoverPublicKey(dataSigned, encodedSig);
     console.log("uncompressed recoveredPubkey", recoveredPubkey);
@@ -241,22 +336,48 @@ const Home: NextPage = () => {
 
     // Get the address associated with the signature created by signing the message
     const recoveredAddr = recoveredAddress;
-    setRecoveredAddress(recoveredAddr);
     console.log("recoveredAddr", recoveredAddr);
+    setRecoveredAddress(recoveredAddr);
 
     // Check if the address associated with the signature is the same as the current PKP
     const verified = currentPKP?.ethAddress.toLowerCase() === recoveredAddr.toLowerCase();
-    setVerified(verified);
     console.log("verified", verified);
+    setVerified(verified);
+
+    notification.remove(id);
+    id = notification.info("Send transaction");
 
     const signedTransaction = ethers.utils.serializeTransaction(tx, encodedSig);
     console.log("signedTransaction", signedTransaction);
 
     const txSend = await sendSignedTransaction(signedTransaction, provider);
-    txSend.wait().then((receipt: any) => {
-      console.log("receipt", receipt);
-      notification.success("Transaction sent");
-    });
+    notification.remove(id);
+
+    id = notification.loading("Waiting for transaction to be mined");
+
+    // Wait for the transaction to be mined
+    while (true) {
+      const receipt = await provider.getTransactionReceipt(txSend.hash);
+      if (receipt) {
+        break;
+      }
+    }
+
+    txSend
+      .wait()
+      .then((receipt: any) => {
+        console.log("receipt", receipt);
+        notification.remove(id);
+        id = notification.success("Transaction Successful");
+      })
+      .catch((error: any) => {
+        console.log("error", error);
+        notification.remove(id);
+
+        id = notification.remove(id);
+
+        notification.error("Transaction Failed");
+      });
   }
 
   const sendSignedTransaction = async (
@@ -264,11 +385,13 @@ const Home: NextPage = () => {
     provider: P,
   ) => {
     const bytes: any = ethers.utils.arrayify(signedTransaction);
-    return await provider.sendTransaction(bytes);
+    const tx = await provider.sendTransaction(bytes);
+
+    return tx;
   };
 
   async function sendCustomTxWithPKP() {
-    console.log("Current PKP", currentPKP);
+    let id = notification.info("Send Custom Transaction");
 
     const tx = {
       to: targetAddress,
@@ -280,76 +403,8 @@ const Home: NextPage = () => {
       data: "0x" + customTx,
     };
 
-    const serializedTx = ethers.utils.serializeTransaction(tx);
-    const toSign = ethers.utils.arrayify(ethers.utils.keccak256(serializedTx));
-    const message = serializedTx;
-
-    const litActionCode = `
-        const go = async () => {
-          // this requests a signature share from the Lit Node
-          // the signature share will be automatically returned in the response from the node
-          // and combined into a full signature by the LitJsSdk for you to use on the client
-          // all the params (toSign, publicKey, sigName) are passed in from the LitJsSdk.executeJs() function
-          const sigShare = await LitActions.signEcdsa({ toSign, publicKey, sigName });
-        };
-        go();
-      `;
-
-    // Sign message
-    // @ts-ignore - complains about no authSig, but we don't need one for this action
-    const results = await litNodeClient.executeJs({
-      code: litActionCode,
-      sessionSigs: sessionSigs,
-      jsParams: {
-        toSign: toSign,
-        publicKey: currentPKP?.publicKey,
-        sigName: "sig1",
-      },
-    });
-
-    // Get signature
-    const result = results.signatures["sig1"];
-    console.log("result", result);
-
-    // Split the signature object
-    const dataSigned = toSign;
-    console.log("dataSigned", dataSigned);
-
-    const encodedSig = joinSignature({
-      r: "0x" + result.r,
-      s: "0x" + result.s,
-      v: result.recid,
-    });
-
-    setSignature(encodedSig);
-    console.log("signature", encodedSig);
-
-    const recoveredPubkey = recoverPublicKey(dataSigned, encodedSig);
-    console.log("uncompressed recoveredPubkey", recoveredPubkey);
-
-    const compressedRecoveredPubkey = computePublicKey(recoveredPubkey, true);
-    console.log("compressed recoveredPubkey", compressedRecoveredPubkey);
-
-    const recoveredAddress = recoverAddress(dataSigned, encodedSig);
-    console.log("recoveredAddress", recoveredAddress);
-
-    const recoveredAddressViaMessage = verifyMessage(message, encodedSig);
-    console.log("recoveredAddressViaMessage", recoveredAddressViaMessage);
-
-    // Get the address associated with the signature created by signing the message
-    const recoveredAddr = recoveredAddress;
-    setRecoveredAddress(recoveredAddr);
-    console.log("recoveredAddr", recoveredAddr);
-
-    // Check if the address associated with the signature is the same as the current PKP
-    const verified = currentPKP?.ethAddress.toLowerCase() === recoveredAddr.toLowerCase();
-    setVerified(verified);
-    console.log("verified", verified);
-
-    const signedTransaction = ethers.utils.serializeTransaction(tx, encodedSig);
-    console.log("signedTransaction", signedTransaction);
-
-    await sendSignedTransaction(signedTransaction, provider);
+    notification.remove(id);
+    await processTransaction(tx);
   }
 
   // Swap Functions
@@ -379,38 +434,7 @@ const Home: NextPage = () => {
     ]);
   }
 
-  async function generateSwapData(
-    swapDescription: {
-      srcToken: any;
-      dstToken: any;
-      srcReceiver: any;
-      dstReceiver: any;
-      amount: any;
-      minReturnAmout: any;
-      flags: any;
-      permit: any;
-    },
-    data: any,
-  ) {
-    const iface = new Interface([
-      "function swap(address,tuple(address,address,address,address,uint256,uint256,uint256,bytes),bytes) external returns (uint256,uint256)",
-    ]);
-    return iface.encodeFunctionData("swap", [
-      [
-        swapDescription.srcToken,
-        swapDescription.dstToken,
-        swapDescription.srcReceiver,
-        swapDescription.dstReceiver,
-        swapDescription.amount,
-        swapDescription.minReturnAmout,
-        swapDescription.flags,
-        swapDescription.permit,
-      ],
-      data,
-    ]);
-  }
-
-  /*  async function executeUniswapV3SwapExactInputSingle(
+  async function executeUniswapV3SwapExactInputSingle(
     swapRouterAddress: any,
     exactInputSingleParams: {
       tokenIn: any;
@@ -422,22 +446,67 @@ const Home: NextPage = () => {
       sqrtPriceLimitX96: any;
     },
   ) {
-    notification.info("Execute Swap");
+    let id = notification.info("Execute Swap");
+    console.log(generateSwapExactInputSingleCalldata(exactInputSingleParams));
+
     const tx = {
       to: swapRouterAddress,
-      nonce: await provider.getTransactionCount(currentPKP?.ethAddress),
+      nonce: await provider.getTransactionCount(currentPKP?.ethAddress!),
+      value: 0,
+      gasPrice: await provider.getGasPrice(),
+      gasLimit: 0,
+      chainId: (await provider.getNetwork()).chainId,
+      data: await generateSwapExactInputSingleCalldata(exactInputSingleParams),
+    };
+    tx.gasLimit =
+      Number(await provider.estimateGas(await generateSwapExactInputSingleCalldata(exactInputSingleParams))) + 100000;
+
+    console.log(tx);
+    notification.remove(id);
+    await processTransaction(tx);
+  }
+
+  const getAllowance = async (
+    tokenAddress: string,
+    owner: any,
+    spender: string,
+    provider: ethers.Signer | ethers.providers.Provider | undefined,
+  ) => {
+    const abi = ["function allowance(address,address) view returns (uint256)"];
+
+    const contract = new Contract(tokenAddress, abi, provider);
+    return await contract.allowance(owner, spender);
+  };
+
+  async function approveERC20WithPKP() {
+    let id = notification.info("Approving ERC20 Token");
+
+    const iface = new Interface(["function approve(address,uint256) returns (bool)"]);
+    const data = iface.encodeFunctionData("approve", [targetAddress, parseEther(amountToSend)]);
+
+    console.log("data", data);
+
+    let tx = {
+      to: tokenToApprove,
+      nonce: await provider.getTransactionCount(currentPKP?.ethAddress!),
       value: 0,
       gasPrice: await provider.getGasPrice(),
       gasLimit: 500000,
-      chainId: (await provider.getNetwork()).chainId,
-      data: generateSwapExactInputSingleCalldata(exactInputSingleParams),
+      chainId: (await provider?.getNetwork()).chainId,
+      data: data,
     };
 
+    console.log("tx", tx);
+
+    console.log("Approve Tx Created");
+
+    notification.remove(id);
     await processTransaction(tx);
-  } */
+  }
 
   const swapUniswapExactInputSingle = async () => {
     console.log("[Wallit]: getting uniswap allowance...");
+
     const allowance = await getAllowance(
       tokenFrom!, // cEUR
       currentPKP?.ethAddress, // owner
@@ -462,10 +531,18 @@ const Home: NextPage = () => {
       console.log("[Wallit]: uniswap already approved...");
     }
 
-    const swapDescription = {
+    // fech block timestamp ethers
+
+    const deadline = Math.floor(Date.now() / 1000) + 60 * 20;
+
+    console.log("Token From", tokenFrom);
+    console.log("Token To", tokenTo);
+
+    const swapDescriptionUni = {
       tokenIn: tokenFrom,
       tokenOut: tokenTo,
       recipient: currentPKP?.ethAddress,
+      deadline: deadline + 1000,
       amountIn: parseEther(String(amountToSwap)),
       amountOutMinimum: 0,
       sqrtPriceLimitX96: 0,
@@ -473,346 +550,113 @@ const Home: NextPage = () => {
     };
 
     console.log("[testSDK]: executing trade on celo uniswap...");
-    const tx = await executeUniswapV3SwapExactInputSingle(addresses.polygon.uniswap.v3.SwapRouter02, swapDescription);
+    await executeUniswapV3SwapExactInputSingle(addresses.polygon.uniswap.v3.SwapRouter02, swapDescriptionUni);
     console.log("[testSDK]: sent swap transaction... ");
   };
 
   // Send ETH with PKP
 
   async function wrapETHWithPKP() {
-    notification.info("Wrap ETH with PKP");
+    let id = notification.info("Wrap ETH with PKP");
     console.log("Current PKP", currentPKP);
     const iface = new Interface(["function deposit()"]);
     const data = iface.encodeFunctionData("deposit", []);
 
-    const tx = {
+    let tx = {
       to: addresses.polygon.wmatic, // spender,
       nonce: await provider.getTransactionCount(currentPKP?.ethAddress!),
       value: parseEther(amountToSend),
       gasPrice: await provider.getGasPrice(),
-      gasLimit: 5000000,
+      gasLimit: 0,
       chainId: (await provider?.getNetwork()).chainId,
       data: data,
     };
 
+    tx.gasLimit = Number(await provider.estimateGas(tx)) + 100000;
+
+    console.log("tx: ", tx);
+    notification.remove(id);
     await processTransaction(tx);
   }
 
   async function unwrapETHWithPKP() {
-    notification.info("UWrap ETH with PKP");
+    let id = notification.info("UWrap ETH with PKP");
     console.log("Current PKP", currentPKP);
     const iface = new Interface(["function withdraw(uint)"]);
     const data = iface.encodeFunctionData("withdraw", [amountToSend]);
 
-    const tx = {
+    let tx = {
       to: addresses.polygon.wmatic, // spender,
       nonce: await provider.getTransactionCount(currentPKP?.ethAddress!),
       value: 0,
       gasPrice: await provider.getGasPrice(),
-      gasLimit: 5000000,
+      gasLimit: 0,
       chainId: (await provider?.getNetwork()).chainId,
       data: data,
     };
 
+    tx.gasLimit = Number(await provider.estimateGas(tx)) + 100000;
+    notification.remove(id);
     await processTransaction(tx);
   }
 
-  async function sendETHWithPKP() {
-    notification.info("Sending ETH with PKP");
-    console.log("Current PKP", currentPKP);
+  const sendETHWithPKP = async () => {
+    let id = notification.info("Sending ETH with PKP");
 
-    const tx = {
+    let tx = {
       to: targetAddress,
       nonce: await provider.getTransactionCount(currentPKP?.ethAddress!),
       value: parseEther(amountToSend),
       gasPrice: await provider.getGasPrice(),
-      gasLimit: 5000000,
+      gasLimit: 0,
       chainId: (await provider?.getNetwork()).chainId,
       data: "",
     };
 
-    const serializedTx = ethers.utils.serializeTransaction(tx);
-    const toSign = ethers.utils.arrayify(ethers.utils.keccak256(serializedTx));
-    const message = serializedTx;
+    tx.gasLimit = Number(await provider.estimateGas(tx)) + 100000;
 
-    const litActionCode = `
-        const go = async () => {
-          // this requests a signature share from the Lit Node
-          // the signature share will be automatically returned in the response from the node
-          // and combined into a full signature by the LitJsSdk for you to use on the client
-          // all the params (toSign, publicKey, sigName) are passed in from the LitJsSdk.executeJs() function
-          const sigShare = await LitActions.signEcdsa({ toSign, publicKey, sigName });
-        };
-        go();
-      `;
-
-    // Sign message
-    // @ts-ignore - complains about no authSig, but we don't need one for this action
-    const results = await litNodeClient.executeJs({
-      code: litActionCode,
-      sessionSigs: sessionSigs,
-      jsParams: {
-        toSign: toSign,
-        publicKey: currentPKP?.publicKey,
-        sigName: "sig1",
-      },
-    });
-
-    // Get signature
-    const result = results.signatures["sig1"];
-    console.log("result", result);
-
-    // Split the signature object
-    const dataSigned = toSign;
-    console.log("dataSigned", dataSigned);
-
-    const encodedSig = joinSignature({
-      r: "0x" + result.r,
-      s: "0x" + result.s,
-      v: result.recid,
-    });
-
-    setSignature(encodedSig);
-    console.log("signature", encodedSig);
-
-    const recoveredPubkey = recoverPublicKey(dataSigned, encodedSig);
-    console.log("uncompressed recoveredPubkey", recoveredPubkey);
-
-    const compressedRecoveredPubkey = computePublicKey(recoveredPubkey, true);
-    console.log("compressed recoveredPubkey", compressedRecoveredPubkey);
-
-    const recoveredAddress = recoverAddress(dataSigned, encodedSig);
-    console.log("recoveredAddress", recoveredAddress);
-
-    const recoveredAddressViaMessage = verifyMessage(message, encodedSig);
-    console.log("recoveredAddressViaMessage", recoveredAddressViaMessage);
-
-    // Get the address associated with the signature created by signing the message
-    const recoveredAddr = recoveredAddress;
-    setRecoveredAddress(recoveredAddr);
-    console.log("recoveredAddr", recoveredAddr);
-
-    // Check if the address associated with the signature is the same as the current PKP
-    const verified = currentPKP?.ethAddress.toLowerCase() === recoveredAddr.toLowerCase();
-    setVerified(verified);
-    console.log("verified", verified);
-
-    notification.info("Sending signed transaction");
-    const signedTransaction = ethers.utils.serializeTransaction(tx, encodedSig);
-    console.log("signedTransaction", signedTransaction);
-
-    const transaction = await sendSignedTransaction(signedTransaction, provider);
-    notification.success("Transaction sent");
-  }
-
-  async function approveERC20WithPKP() {
-    console.log("Current PKP", currentPKP);
-
-    const iface = new Interface(["function approve(address,uint256) returns (bool)"]);
-    const data = iface.encodeFunctionData("approve", [targetAddress, amountToSend]);
-
-    let amountToApprove;
-    if (amountToSend === String(MaxUint256)) {
-      amountToApprove = MaxUint256;
-    } else {
-      amountToApprove = parseEther(amountToSend);
-    }
-    const tx = {
-      to: tokenToApprove,
-      nonce: await provider.getTransactionCount(currentPKP?.ethAddress!),
-      value: amountToApprove,
-      gasPrice: await provider.getGasPrice(),
-      gasLimit: 5000000,
-      chainId: (await provider?.getNetwork()).chainId,
-      data: data,
-    };
-
-    const serializedTx = ethers.utils.serializeTransaction(tx);
-    const toSign = ethers.utils.arrayify(ethers.utils.keccak256(serializedTx));
-    const message = serializedTx;
-
-    const litActionCode = `
-        const go = async () => {
-          // this requests a signature share from the Lit Node
-          // the signature share will be automatically returned in the response from the node
-          // and combined into a full signature by the LitJsSdk for you to use on the client
-          // all the params (toSign, publicKey, sigName) are passed in from the LitJsSdk.executeJs() function
-          const sigShare = await LitActions.signEcdsa({ toSign, publicKey, sigName });
-        };
-        go();
-      `;
-
-    // Sign message
-    // @ts-ignore - complains about no authSig, but we don't need one for this action
-    const results = await litNodeClient.executeJs({
-      code: litActionCode,
-      sessionSigs: sessionSigs,
-      jsParams: {
-        toSign: toSign,
-        publicKey: currentPKP?.publicKey,
-        sigName: "sig1",
-      },
-    });
-
-    // Get signature
-    const result = results.signatures["sig1"];
-    console.log("result", result);
-
-    // Split the signature object
-    const dataSigned = toSign;
-    console.log("dataSigned", dataSigned);
-
-    const encodedSig = joinSignature({
-      r: "0x" + result.r,
-      s: "0x" + result.s,
-      v: result.recid,
-    });
-
-    const encodedSplitSig = splitSignature({
-      r: "0x" + result.r,
-      s: "0x" + result.s,
-      v: result.recid,
-    });
-
-    setSignature(encodedSig);
-    console.log("signature", encodedSig);
-
-    const recoveredPubkey = recoverPublicKey(dataSigned, encodedSig);
-    console.log("uncompressed recoveredPubkey", recoveredPubkey);
-
-    const compressedRecoveredPubkey = computePublicKey(recoveredPubkey, true);
-    console.log("compressed recoveredPubkey", compressedRecoveredPubkey);
-
-    const recoveredAddress = recoverAddress(dataSigned, encodedSig);
-    console.log("recoveredAddress", recoveredAddress);
-
-    const recoveredAddressViaMessage = verifyMessage(message, encodedSig);
-    console.log("recoveredAddressViaMessage", recoveredAddressViaMessage);
-
-    // Get the address associated with the signature created by signing the message
-    const recoveredAddr = recoveredAddress;
-    setRecoveredAddress(recoveredAddr);
-    console.log("recoveredAddr", recoveredAddr);
-
-    // Check if the address associated with the signature is the same as the current PKP
-    const verified = currentPKP?.ethAddress.toLowerCase() === recoveredAddr.toLowerCase();
-    setVerified(verified);
-    console.log("verified", verified);
-
-    const signedTransaction = ethers.utils.serializeTransaction(tx, encodedSig);
-    console.log("signedTransaction", signedTransaction);
-
-    const txSend = await sendSignedTransaction(signedTransaction, provider);
-    txSend.wait().then((receipt: any) => {
-      console.log("receipt", receipt);
-      notification.success("Transaction sent");
-    });
-  }
-
-  const getAllowance = async (
-    tokenAddress: string,
-    owner: any,
-    spender: string,
-    provider: ethers.Signer | ethers.providers.Provider | undefined,
-  ) => {
-    const abi = ["function allowance(address,address) view returns (uint256)"];
-
-    const contract = new Contract(tokenAddress, abi, provider);
-    return await contract.allowance(owner, spender);
+    console.log("tx:", tx);
+    notification.remove(id);
+    const processTx = await processTransaction(tx);
   };
 
   async function transferERC20WithPKP() {
-    console.log("Current PKP", currentPKP);
+    let id = notification.info("Transfer ERC20 with PKP");
+
+    let decimals = 0;
+
+    for (let i = 0; i < tokenInWallet.length; i++) {
+      if (tokenInWallet[i].address === tokenToApprove) {
+        const token = new Contract(tokenToApprove, erc20ABI, provider);
+        const balance = await token.balanceOf(currentPKP?.ethAddress);
+        if (balance) {
+          decimals = tokenInWallet[i].decimals;
+        }
+      }
+    }
+
+    const _amountToSend = parseUnits(amountToSend, decimals);
+
+    console.log("Amount to send", Number(_amountToSend));
 
     const iface = new Interface(["function transfer(address,uint256) returns (bool)"]);
-    const data = iface.encodeFunctionData("transfer", [targetAddress, amountToSend]);
+    const data = iface.encodeFunctionData("transfer", [targetAddress, _amountToSend]);
 
-    const tx = {
+    let tx = {
       to: tokenToApprove,
       nonce: await provider.getTransactionCount(currentPKP?.ethAddress!),
-      value: parseEther(amountToSend),
+      value: 0,
       gasPrice: await provider.getGasPrice(),
-      gasLimit: 5000000,
+      gasLimit: 0,
       chainId: (await provider?.getNetwork()).chainId,
       data: data,
     };
 
-    const serializedTx = ethers.utils.serializeTransaction(tx);
-    const toSign = ethers.utils.arrayify(ethers.utils.keccak256(serializedTx));
-    const message = serializedTx;
+    tx.gasLimit = Number(await provider.estimateGas(data)) + 100000;
 
-    const litActionCode = `
-        const go = async () => {
-          // this requests a signature share from the Lit Node
-          // the signature share will be automatically returned in the response from the node
-          // and combined into a full signature by the LitJsSdk for you to use on the client
-          // all the params (toSign, publicKey, sigName) are passed in from the LitJsSdk.executeJs() function
-          const sigShare = await LitActions.signEcdsa({ toSign, publicKey, sigName });
-        };
-        go();
-      `;
-
-    // Sign message
-    // @ts-ignore - complains about no authSig, but we don't need one for this action
-    const results = await litNodeClient.executeJs({
-      code: litActionCode,
-      sessionSigs: sessionSigs,
-      jsParams: {
-        toSign: toSign,
-        publicKey: currentPKP?.publicKey,
-        sigName: "sig1",
-      },
-    });
-
-    // Get signature
-    const result = results.signatures["sig1"];
-    console.log("result", result);
-
-    // Split the signature object
-    const dataSigned = toSign;
-    console.log("dataSigned", dataSigned);
-
-    const encodedSig = joinSignature({
-      r: "0x" + result.r,
-      s: "0x" + result.s,
-      v: result.recid,
-    });
-
-    const encodedSplitSig = splitSignature({
-      r: "0x" + result.r,
-      s: "0x" + result.s,
-      v: result.recid,
-    });
-
-    setSignature(encodedSig);
-    console.log("signature", encodedSig);
-
-    const recoveredPubkey = recoverPublicKey(dataSigned, encodedSig);
-    console.log("uncompressed recoveredPubkey", recoveredPubkey);
-
-    const compressedRecoveredPubkey = computePublicKey(recoveredPubkey, true);
-    console.log("compressed recoveredPubkey", compressedRecoveredPubkey);
-
-    const recoveredAddress = recoverAddress(dataSigned, encodedSig);
-    console.log("recoveredAddress", recoveredAddress);
-
-    const recoveredAddressViaMessage = verifyMessage(message, encodedSig);
-    console.log("recoveredAddressViaMessage", recoveredAddressViaMessage);
-
-    // Get the address associated with the signature created by signing the message
-    const recoveredAddr = recoveredAddress;
-    setRecoveredAddress(recoveredAddr);
-    console.log("recoveredAddr", recoveredAddr);
-
-    // Check if the address associated with the signature is the same as the current PKP
-    const verified = currentPKP?.ethAddress.toLowerCase() === recoveredAddr.toLowerCase();
-    setVerified(verified);
-    console.log("verified", verified);
-
-    const signedTransaction = ethers.utils.serializeTransaction(tx, encodedSig);
-    console.log("signedTransaction", signedTransaction);
-
-    await sendSignedTransaction(signedTransaction, provider);
+    console.log("tx:", tx);
+    notification.remove(id);
+    await processTransaction(tx);
   }
 
   /**
@@ -844,8 +688,8 @@ const Home: NextPage = () => {
    */
   async function authWithDiscord() {
     setCurrentProviderType(ProviderType.Discord);
-    const provider = litAuthClient.initProvider<DiscordProvider>(ProviderType.Discord);
-    await provider.signIn();
+    const provider = litAuthClient?.initProvider<DiscordProvider>(ProviderType.Discord);
+    await provider?.signIn();
   }
 
   /**
@@ -885,7 +729,7 @@ const Home: NextPage = () => {
 
     try {
       // Register new PKP
-      const provider = litAuthClient.getProvider(ProviderType.WebAuthn) as WebAuthnProvider;
+      const provider = litAuthClient?.getProvider(ProviderType.WebAuthn) as WebAuthnProvider;
       setCurrentProviderType(ProviderType.WebAuthn);
       const options = await provider.register();
 
@@ -939,7 +783,7 @@ const Home: NextPage = () => {
       setView(Views.SESSION_CREATED);
     } catch (err) {
       console.error(err);
-      setAuthMethod(null);
+      setAuthMethod(null as any);
       setError(err);
       setView(Views.ERROR);
     }
@@ -952,7 +796,7 @@ const Home: NextPage = () => {
       setView(Views.HANDLE_REDIRECT);
       try {
         // Get relevant provider
-        let provider: BaseProvider;
+        let provider: P;
         if (providerName === ProviderType.Google) {
           provider = litAuthClient?.getProvider(ProviderType.Google);
         } else if (providerName === ProviderType.Discord) {
@@ -961,12 +805,12 @@ const Home: NextPage = () => {
         setCurrentProviderType(providerName as ProviderType);
 
         // Get auth method object that has the OAuth token from redirect callback
-        const authMethod: AuthMethod = await provider.authenticate();
+        const authMethod: AuthMethod = await provider?.authenticate();
         setAuthMethod(authMethod);
 
         // Fetch PKPs associated with social account
         setView(Views.FETCHING);
-        const pkps: IRelayPKP[] = await provider.fetchPKPsThroughRelayer(authMethod);
+        const pkps: IRelayPKP[] = await provider?.fetchPKPsThroughRelayer(authMethod);
 
         if (pkps.length > 0) {
           setPKPs(pkps);
@@ -1159,7 +1003,7 @@ const Home: NextPage = () => {
     // Check if app has been redirected from Lit login server
     if (litAuthClient && !authMethod && isSignInRedirect(redirectUri)) {
       const providerName = getProviderFromUrl();
-      handleRedirect(providerName);
+      handleRedirect(providerName!);
     }
   }, [litAuthClient, handleRedirect, authMethod]);
 
@@ -1221,7 +1065,7 @@ const Home: NextPage = () => {
                       //await handleConnectWallet({ connector });
                     }}
                   >
-                    Sign with {connector.name}
+                    Sign with {connector?.name}
                   </button>
                   <button
                     className="btn btn-primary "
@@ -1344,22 +1188,31 @@ const Home: NextPage = () => {
         {view === Views.SESSION_CREATED && (
           <>
             <div className="text-center items-center">
-              <div className="m-2">
-                <MetaMaskAvatar address={String(currentPKP?.ethAddress)} size={200} />
-                <div className="text-4xl text-center font-bold Capitalize mb-2">{wallitDescription!}</div>
+              <div className="m-5">
+                <MetaMaskAvatar address={String(currentPKP?.ethAddress)} size={200} className="hover:animate-spin" />
+                <div className="text-4xl text-center font-bold Capitalize mb-2 hover:animate-zoom">
+                  {wallitDescription!}
+                </div>
               </div>
             </div>
+            <Address address={currentPKP?.ethAddress} format="long" />
+
             <div className="text-center">
-              <p className="text-6xl font-medium break-all mb-5">💲{balance}</p>
+              <p className="text-6xl font-medium break-all mb-5 hover:animate-pulse-fast">
+                💲{Number(balance).toFixed(4)}
+              </p>
             </div>
-            <div className="flex flex-row">
+            <div className="btn btn-primary hover:btn-secondary  mx-2 my-5" onClick={async () => fetchTokenInWallet()}>
+              Refresh
+            </div>
+            <div className="flex flex-row m-2">
               <label htmlFor="send-modal" className="btn btn-circle m-5">
-                <ArrowRightCircleIcon />
+                <ArrowRightCircleIcon className="hover:animate-zoom" />
               </label>
               <input type="checkbox" id="send-modal" className="modal-toggle" />
               <div className="modal">
                 <div className="modal-box">
-                  <h3 className="font-bold text-lg">Send ETH</h3>
+                  <h3 className="font-bold text-lg m-2">Send ETH</h3>
                   <input
                     onChange={e => setAmountToSend(e.target.value)}
                     className="input input-bordered w-full mb-4"
@@ -1379,6 +1232,8 @@ const Home: NextPage = () => {
                     Send ETH
                   </button>
                   <div className="divider" />
+                  <h3 className="font-bold text-lg m-2">Wrap/Unwrap</h3>
+
                   <input
                     onChange={e => setAmountToSend(e.target.value)}
                     className="input input-bordered w-full mb-4"
@@ -1387,14 +1242,14 @@ const Home: NextPage = () => {
                     placeholder="Enter amount to send"
                   />
 
-                  <button onClick={wrapETHWithPKP} className="btn btn-primary">
+                  <button onClick={wrapETHWithPKP} className="btn btn-primary mx-2">
                     Wrap ETH
                   </button>
                   <button onClick={unwrapETHWithPKP} className="btn btn-primary">
                     Unwrap ETH
                   </button>
                   <div className="divider" />
-                  <h3 className="font-bold text-lg">Send ERC20</h3>
+                  <h3 className="font-bold text-lg m-2">Send ERC20</h3>
                   <input
                     onChange={e => setAmountToSend(e.target.value)}
                     className="input input-bordered w-full mb-4"
@@ -1409,14 +1264,18 @@ const Home: NextPage = () => {
                     required
                     placeholder="Receiver "
                   />
-                  <input
+                  <select
                     onChange={e => setTokenToApprove(e.target.value)}
-                    className="input input-bordered w-full mb-4"
-                    type="text"
-                    required
-                    placeholder="Token Address"
-                  />
-                  <button onClick={approveERC20WithPKP} className="btn btn-primary">
+                    className="select select-bordered w-full mb-4"
+                  >
+                    {tokenInWallet.map(token => (
+                      <option key={token.address} value={token.address}>
+                        {token.symbol}
+                      </option>
+                    ))}
+                  </select>
+
+                  <button onClick={approveERC20WithPKP} className="btn btn-primary mx-2">
                     Approve
                   </button>
                   <button onClick={transferERC20WithPKP} className="btn btn-primary">
@@ -1431,7 +1290,7 @@ const Home: NextPage = () => {
               </div>
 
               <label htmlFor="receive-modal" className="btn btn-circle m-5">
-                <ArrowDownCircleIcon />
+                <ArrowDownCircleIcon className="hover:animate-zoom" />
               </label>
               <input type="checkbox" id="receive-modal" className="modal-toggle" />
               <div className="modal">
@@ -1453,11 +1312,13 @@ const Home: NextPage = () => {
                 </div>
               </div>
               <label htmlFor="customtx-modal" className="btn btn-circle m-5">
-                <ArrowUpCircleIcon />
+                <ArrowUpCircleIcon className="hover:animate-zoom" />
               </label>
               <input type="checkbox" id="customtx-modal" className="modal-toggle" />
               <div className="modal">
                 <div className="modal-box">
+                  <h3 className="font-bold text-lg m-2">Custom Tx</h3>
+
                   <input
                     onChange={e => setTargetAddress(e.target.value)}
                     className="input input-bordered w-full mb-4"
@@ -1493,36 +1354,55 @@ const Home: NextPage = () => {
                 </div>
               </div>
               <label htmlFor="swap-modal" className="btn btn-circle m-5">
-                <ArrowPathIcon />
+                <ArrowPathIcon className="hover:animate-zoom" />
               </label>
               <input type="checkbox" id="swap-modal" className="modal-toggle" />
               <div className="modal">
                 <div className="modal-box">
                   <h3 className="font-bold text-lg">Swap ERC20</h3>
-
-                  <input
-                    onChange={e => setTokenFrom(e.target.value)}
-                    className="input input-bordered w-full mb-4"
-                    type="text"
-                    placeholder="Token From"
-                  />
-                  <input
+                  ⚠️ Check if the pool exists on Uniswap before swapping
+                  <p>
+                    Powered by
+                    <Image src={UniswapIcon} width={80} height={80} alt="Uniswap" className="hover:animate-zoom" />
+                  </p>
+                  <select
+                    onChange={e => {
+                      setTokenFrom(e.target.value);
+                      setTokenToApprove(e.target.value);
+                    }}
+                    className="select select-bordered w-full mb-4 my-5"
+                    placeholder="Select Token"
+                  >
+                    {tokenInWallet.map((token, index) => {
+                      return (
+                        <option key={index} value={token.address}>
+                          <div>{token.name}</div>
+                        </option>
+                      );
+                    })}
+                  </select>
+                  <select
                     onChange={e => setTokenTo(e.target.value)}
-                    className="input input-bordered w-full mb-4"
-                    type="text"
-                    placeholder="Token To"
-                  />
+                    className="select select-bordered w-full mb-4"
+                    placeholder="Select Token"
+                  >
+                    {tokenList.map((token, index) => {
+                      return (
+                        <option key={index} value={token.address}>
+                          <div>{token.name}</div>
+                        </option>
+                      );
+                    })}
+                  </select>
                   <input
                     onChange={e => setAmountToSwap(e.target.value)}
                     className="input input-bordered w-full mb-4"
                     type="text"
                     placeholder="Amount To Swap"
                   />
-
                   <button onClick={swapUniswapExactInputSingle} className="btn btn-primary">
                     Swap
                   </button>
-
                   <div className="modal-action">
                     <label htmlFor="swap-modal" className="btn">
                       Close
@@ -1531,11 +1411,34 @@ const Home: NextPage = () => {
                 </div>
               </div>
               <a href={zapperUrl!} target="_blank" className="btn btn-circle m-5">
-                <ArchiveBoxIcon />
+                <ArchiveBoxIcon className="hover:animate-zoom" />
               </a>
             </div>
-            <Address address={currentPKP?.ethAddress} format="long" />
-
+            {tokenInWallet && (
+              <div className="grid md:grid-cols-2 sm:grid-cols lg:grid-cols-2 gap-4 my-10">
+                {tokenInWallet.map((token, index) => {
+                  return (
+                    <div className="bg-base-300 shadow-lg rounded-lg p-6" key={index}>
+                      <div className="flex items-center justify-between">
+                        <h2 className="text-lg font-bold">{token.name}</h2>
+                        <img src={token.logoURI} className="w-10 h-10" alt={`${token.name} logo`} />
+                      </div>
+                      <p className="text-sm text-primary">{token.symbol}</p>
+                      <p className="text-lg font-bold">
+                        {token.decimals == 18
+                          ? String(token.balance / 1e18)
+                          : token.decimals == 6
+                          ? String(token.balance / 1e6)
+                          : token.decimals == 8
+                          ? String(token.balance / 1e8)
+                          : String(token.balance / 1e12)}
+                      </p>
+                      <p className="text-xs text-gray-500">{token.address}</p>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
             {yourWallit === "0x0000000000000000000000000000000000000000" && yourWallit ? (
               <div>
                 <button
@@ -1582,7 +1485,6 @@ const Home: NextPage = () => {
                 set name
               </button>
             </div>
-
             <div className="collapse">
               <input type="checkbox" />
               <div className="collapse-title">👇🏻DON'T TRUST VERIFY!</div>

@@ -2,7 +2,7 @@ import React, { useCallback, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/router";
-import { Bars3Icon, BugAntIcon, DocumentIcon, SparklesIcon } from "@heroicons/react/24/outline";
+import { Bars3Icon, BugAntIcon, DocumentIcon, HomeIcon, SparklesIcon } from "@heroicons/react/24/outline";
 import { FaucetButton, RainbowKitCustomConnectButton } from "~~/components/scaffold-eth";
 import { useOutsideClick } from "~~/hooks/scaffold-eth";
 
@@ -37,7 +37,11 @@ export const Header = () => {
   const navLinks = (
     <>
       <li>
-        <NavLink href="/">▣</NavLink>
+        <NavLink href="/">
+          {" "}
+          <HomeIcon className="h-4 w-4" />
+          Home
+        </NavLink>
       </li>
       <li>
         <NavLink href="https://scobru.gitbook.io/wallit/">
@@ -87,7 +91,7 @@ export const Header = () => {
         </div>
         <Link href="/" passHref className="hidden lg:flex items-center gap-2 ml-4 mr-6">
           <div className="flex flex-col">
-            <span className="font-bold leading-tight text-2xl">▣ WALLIT</span>
+            <span className="font-bold leading-tight text-2xl m-3">▣ WALLIT</span>
           </div>
         </Link>
         <ul className="hidden lg:flex lg:flex-nowrap menu menu-horizontal px-1 gap-2">{navLinks}</ul>

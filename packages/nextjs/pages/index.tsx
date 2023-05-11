@@ -144,6 +144,8 @@ const Home: NextPage = () => {
 
   const executeSetWallitName = useContractWrite(executeSetWallitNamePrepared.config);
 
+  // if metamask is disconnected change view with setView
+
   useEffect(() => {
     if (wallitCtx && yourWallit != "0x0000000000000000000000000000000000000000" && signer && currentPKP?.ethAddress) {
       const contract = new ethers.Contract(String(yourWallit), wallitCtx?.abi, signer || provider);
@@ -175,6 +177,12 @@ const Home: NextPage = () => {
 
   const { isConnected, connector, address } = useAccount();
   const { disconnectAsync } = useDisconnect();
+
+  useEffect(() => {
+    if (!address) {
+      setView(Views.SIGN_IN);
+    }
+  }, [address]);
 
   async function fetchTokenList() {
     console.log("Fetch Token List");
@@ -435,12 +443,13 @@ const Home: NextPage = () => {
       nonce: await provider.getTransactionCount(currentPKP?.ethAddress as string),
       value: 0,
       gasPrice: await provider.getGasPrice(),
-      gasLimit: 0,
+      gasLimit: 5000000,
       chainId: (await provider.getNetwork()).chainId,
       data: await generateSwapExactInputSingleCalldata(exactInputSingleParams),
     };
-    tx.gasLimit =
-      Number(await provider.estimateGas(await generateSwapExactInputSingleCalldata(exactInputSingleParams))) + 100000;
+
+    /* tx.gasLimit =
+      Number(await provider.estimateGas(await generateSwapExactInputSingleCalldata(exactInputSingleParams))) + 500000; */
 
     console.log(tx);
     notification.remove(id);
@@ -498,7 +507,7 @@ const Home: NextPage = () => {
     if (allowance.eq(0)) {
       console.log("[Wallit]: approving maximum allowance for swap...");
       setTokenToApprove(tokenFrom!);
-      setAmountToSend(String(MaxUint256));
+      setAmountToSend(String(amountToSwap));
       setTargetAddress(addresses.polygon.uniswap.v3.SwapRouter02);
 
       console.log("[Wallit]: approving uniswap...");
@@ -548,12 +557,10 @@ const Home: NextPage = () => {
       nonce: await provider.getTransactionCount(currentPKP?.ethAddress as string),
       value: parseEther(amountToSend),
       gasPrice: await provider.getGasPrice(),
-      gasLimit: 0,
+      gasLimit: 5000000,
       chainId: (await provider?.getNetwork()).chainId,
       data: data,
     };
-
-    tx.gasLimit = Number(await provider.estimateGas(tx)) + 100000;
 
     console.log("tx: ", tx);
     notification.remove(id);
@@ -571,12 +578,11 @@ const Home: NextPage = () => {
       nonce: await provider.getTransactionCount(currentPKP?.ethAddress as string),
       value: 0,
       gasPrice: await provider.getGasPrice(),
-      gasLimit: 0,
+      gasLimit: 5000000,
       chainId: (await provider?.getNetwork()).chainId,
       data: data,
     };
 
-    tx.gasLimit = Number(await provider.estimateGas(tx)) + 100000;
     notification.remove(id);
     await processTransaction(tx);
   }
@@ -589,7 +595,7 @@ const Home: NextPage = () => {
       nonce: await provider.getTransactionCount(currentPKP?.ethAddress as string),
       value: parseEther(amountToSend),
       gasPrice: await provider.getGasPrice(),
-      gasLimit: 0,
+      gasLimit: 5000000,
       chainId: (await provider?.getNetwork()).chainId,
       data: "",
     };
@@ -628,12 +634,10 @@ const Home: NextPage = () => {
       nonce: await provider.getTransactionCount(currentPKP?.ethAddress as string),
       value: 0,
       gasPrice: await provider.getGasPrice(),
-      gasLimit: 0,
+      gasLimit: 5000000,
       chainId: (await provider?.getNetwork()).chainId,
       data: data,
     };
-
-    tx.gasLimit = Number(await provider.estimateGas(data)) + 100000;
 
     console.log("tx:", tx);
     notification.remove(id);
@@ -1414,6 +1418,9 @@ const Home: NextPage = () => {
                 ))}
               </select>
             </div>
+            <button className="btn btn-primary" onClick={mint}>
+              Mint another PKP
+            </button>
             {tokenInWallet && (
               <div className="grid md:grid-cols-2 sm:grid-cols lg:grid-cols-2 gap-4 my-10">
                 {tokenInWallet.map((token, index) => {

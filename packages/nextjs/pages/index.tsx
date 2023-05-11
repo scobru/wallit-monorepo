@@ -6,7 +6,6 @@ import { useScaffoldContractRead, useTransactor } from "../hooks/scaffold-eth";
 import { useScaffoldContractWrite } from "../hooks/scaffold-eth";
 import UniswapIcon from "../uniswap.png";
 import { addresses } from "../utils/constant";
-import { MaxUint256 } from "@ethersproject/constants";
 import { ProviderType } from "@lit-protocol/constants";
 import {
   DiscordProvider,
@@ -132,6 +131,7 @@ const Home: NextPage = () => {
   const [amountToSwap, setAmountToSwap] = useState<string>();
   const [tokenList, setTokenList] = useState<string[]>([]);
   const [tokenInWallet, setTokenInWallet] = useState<string[]>([]);
+
   const zapperUrl = "https://zapper.xyz/account/" + currentPKP?.ethAddress;
   const qrCodeUrl = "ethereum:" + currentPKP?.ethAddress + "/pay?chain_id=137value=0";
 
@@ -180,6 +180,13 @@ const Home: NextPage = () => {
 
   useEffect(() => {
     if (!address) {
+      setView(Views.SIGN_IN);
+    }
+  }, [address]);
+
+  // On address change, fetch the PKPs
+  useEffect(() => {
+    if (address) {
       setView(Views.SIGN_IN);
     }
   }, [address]);

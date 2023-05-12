@@ -2,6 +2,12 @@ import { useCallback, useEffect, useState } from "react";
 import Head from "next/head";
 import Image from "next/image";
 import { useRouter } from "next/router";
+import {
+  getPortfolio,
+  getStrategyExecutionPlan,
+  getStrategyExecutionPlanMock,
+  runBalancePortfolio,
+} from "../actions/portfolio-rebalance";
 import { useScaffoldContractRead, useTransactor } from "../hooks/scaffold-eth";
 import { useScaffoldContractWrite } from "../hooks/scaffold-eth";
 import UniswapIcon from "../uniswap.png";
@@ -114,7 +120,7 @@ const Home: NextPage = () => {
   const [pkps, setPKPs] = useState<IRelayPKP[]>([]);
   const [currentPKP, setCurrentPKP] = useState<IRelayPKP>();
   const [sessionSigs, setSessionSigs] = useState<SessionSigs>();
-  const [, setAuthSig] = useState<AuthSig>();
+  const [authSig, setAuthSig] = useState<AuthSig>();
   const [message, setMessage] = useState<string>("Free the web!");
   const [signature, setSignature] = useState<string>();
   const [recoveredAddress, setRecoveredAddress] = useState<string>();
@@ -144,10 +150,42 @@ const Home: NextPage = () => {
 
   const executeSetWallitName = useContractWrite(executeSetWallitNamePrepared.config);
 
+  const stubPkpInfo = {
+    publicKey:
+      "0x04e0fe6a5e9447112a272b3bfea3cbcb48a730c731d9edd434417d30f5b25966cb8543cece8ba67fd6bbbb9ba952e28db541de9a898cca0257e5479033c3b7b021",
+  };
+
+  const stubAuthSig = {
+    sig: "0x2bdede6164f56a601fc17a8a78327d28b54e87cf3fa20373fca1d73b804566736d76efe2dd79a4627870a50e66e1a9050ca333b6f98d9415d8bca424980611ca1c",
+    derivedVia: "web3.eth.personal.sign",
+    signedMessage:
+      "localhost wants you to sign in with your Ethereum account:\n0x9D1a5EC58232A894eBFcB5e466E3075b23101B89\n\nThis is a key for Partiful\n\nURI: https://localhost/login\nVersion: 1\nChain ID: 1\nNonce: 1LF00rraLO4f7ZSIt\nIssued At: 2022-06-03T05:59:09.959Z",
+    address: "0x9D1a5EC58232A894eBFcB5e466E3075b23101B89",
+  };
+
+  const fakeData = {
+    pkpPublicKey: currentPKP?.publicKey,
+    strategy: [
+      { token: "WMATIC", percentage: 40 },
+      { token: "MATIC", percentage: 60 },
+    ],
+    conditions: {
+      maxGasPrice: 75,
+      unit: "gwei",
+      minExceedPercentage: 1,
+      unless: {
+        spikePercentage: 15,
+        adjustGasPrice: 500,
+      },
+    },
+    rpcUrl: process.env.MATIC_RPC,
+    dryRun: false,
+  };
+
   // if metamask is disconnected change view with setView
 
   useEffect(() => {
-    if (wallitCtx && yourWallit != "0x0000000000000000000000000000000000000000" && signer && currentPKP?.ethAddress) {
+    if (wallitCtx && yourWallit != ethers.constants.AddressZero && signer && currentPKP?.ethAddress) {
       const contract = new ethers.Contract(String(yourWallit), wallitCtx?.abi, signer || provider);
       // fetch ETH amount of an address with ethers
       const getBalance = async () => {
@@ -178,7 +216,7 @@ const Home: NextPage = () => {
   const { isConnected, connector, address } = useAccount();
   const { disconnectAsync } = useDisconnect();
 
-  useEffect(() => {
+  /* useEffect(() => {
     if (!address) {
       setView(Views.SIGN_IN);
     }
@@ -189,7 +227,7 @@ const Home: NextPage = () => {
     if (address) {
       setView(Views.SIGN_IN);
     }
-  }, [address]);
+  }, [address]); */
 
   async function fetchTokenList() {
     console.log("Fetch Token List");
@@ -1005,6 +1043,12 @@ const Home: NextPage = () => {
     return null;
   }
 
+  /**
+   * ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+   * Portfolio Section
+   * ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+   */
+
   return (
     <>
       <Head>
@@ -1182,338 +1226,370 @@ const Home: NextPage = () => {
         )}
         {view === Views.SESSION_CREATED && (
           <>
-            <div className="text-center items-center">
-              <div className="m-5">
-                <MetaMaskAvatar address={String(currentPKP?.ethAddress)} size={200} className="hover:animate-spin" />
-                <div className="text-6xl text-center font-extrabold Capitalize mb-2 hover:animate-zoom">
-                  {wallitDescription!}
-                </div>
-              </div>
-            </div>
-            <Address address={currentPKP?.ethAddress} format="long" />
-            <div className="items-center">
-              <p className="text-6xl font-semibold break-all mb-5 hover:animate-pulse-fast mx-5">
-                💲{Number(balance).toFixed(4)}
-                <div className="btn btn-circle   text-2xl mx-10 " onClick={async () => fetchTokenInWallet()}>
-                  <ArrowPathIcon className="hover:animate-spin" />
-                </div>
-              </p>
-            </div>
-
-            <div className="flex flex-row mx-10">
-              <label htmlFor="send-modal" className="btn btn-circle m-5">
-                <ArrowRightCircleIcon className="hover:animate-zoom" />
-              </label>
-              <input type="checkbox" id="send-modal" className="modal-toggle" />
-              <div className="modal">
-                <div className="modal-box">
-                  <h3 className="font-bold text-lg m-2">Send ETH</h3>
-                  <input
-                    onChange={e => setAmountToSend(e.target.value)}
-                    className="input input-bordered w-full mb-4"
-                    type="text"
-                    required
-                    placeholder="Enter amount to send"
-                  />
-                  <input
-                    onChange={e => setTargetAddress(e.target.value)}
-                    className="input input-bordered w-full mb-4"
-                    type="text"
-                    required
-                    placeholder="Receiver "
-                  />
-
-                  <button onClick={sendETHWithPKP} className="btn btn-primary">
-                    Send ETH
-                  </button>
-                  <div className="divider mb-5 mt-5" />
-                  <h3 className="font-bold text-lg m-2">Wrap/Unwrap</h3>
-
-                  <input
-                    onChange={e => setAmountToSend(e.target.value)}
-                    className="input input-bordered w-full mb-4"
-                    type="text"
-                    required
-                    placeholder="Enter amount to send"
-                  />
-
-                  <button onClick={wrapETHWithPKP} className="btn btn-primary mx-2">
-                    Wrap ETH
-                  </button>
-                  <button onClick={unwrapETHWithPKP} className="btn btn-primary">
-                    Unwrap ETH
-                  </button>
-                  <div className="divider mb-5 mt-5" />
-                  <h3 className="font-bold text-lg m-2">Send ERC20</h3>
-                  <input
-                    onChange={e => setAmountToSend(e.target.value)}
-                    className="input input-bordered w-full mb-4"
-                    type="text"
-                    required
-                    placeholder="Enter amount to send"
-                  />
-                  <input
-                    onChange={e => setTargetAddress(e.target.value)}
-                    className="input input-bordered w-full mb-4"
-                    type="text"
-                    required
-                    placeholder="Receiver "
-                  />
-                  <select
-                    onChange={e => setTokenToApprove(e.target.value)}
-                    className="select select-bordered w-full mb-4"
-                  >
-                    {tokenInWallet.map(token => (
-                      <option key={token.address} value={token.address}>
-                        {token.symbol}
-                      </option>
-                    ))}
-                  </select>
-
-                  <button onClick={approveERC20WithPKP} className="btn btn-primary mx-2">
-                    Approve
-                  </button>
-                  <button onClick={transferERC20WithPKP} className="btn btn-primary">
-                    Transfer
-                  </button>
-                  <div className="modal-action">
-                    <label htmlFor="send-modal" className="btn">
-                      Close
-                    </label>
+            <div className="flex items-center flex-col flex-grow pt-5">
+              <div className="text-center items-center mx-auto">
+                <div className="my-2">
+                  <MetaMaskAvatar address={String(currentPKP?.ethAddress)} size={200} className="hover:animate-spin" />
+                  <div className="text-6xl text-center font-extrabold Capitalize mb-2 hover:animate-zoom">
+                    {wallitDescription!}
                   </div>
                 </div>
               </div>
-
-              <label htmlFor="receive-modal" className="btn btn-circle m-5">
-                <ArrowDownCircleIcon className="hover:animate-zoom" />
-              </label>
-              <input type="checkbox" id="receive-modal" className="modal-toggle" />
-              <div className="modal">
-                <div className="modal-box">
-                  <div className="mx-auto text-center items-center w-fit">
-                    <QRCodeCanvas
-                      id="qrCode"
-                      value={String(qrCodeUrl)}
-                      size={300}
-                      style={{ alignItems: "center" }}
-                      /* bgColor={"#00ff00"} */ level={"H"}
-                    />
-                  </div>
-                  <div className="modal-action">
-                    <label htmlFor="receive-modal" className="btn">
-                      Close
-                    </label>
-                  </div>
-                </div>
-              </div>
-              <label htmlFor="customtx-modal" className="btn btn-circle m-5">
-                <ArrowUpCircleIcon className="hover:animate-zoom" />
-              </label>
-              <input type="checkbox" id="customtx-modal" className="modal-toggle" />
-              <div className="modal">
-                <div className="modal-box">
-                  <h3 className="font-bold text-lg m-2">Custom Tx</h3>
-
-                  <input
-                    onChange={e => setTargetAddress(e.target.value)}
-                    className="input input-bordered w-full mb-4"
-                    type="text"
-                    placeholder="Target Address"
-                  />
-                  <input
-                    value={amountToSend}
-                    onChange={e => setAmountToSend(e.target.value)}
-                    className="input input-bordered w-full mb-4"
-                    type="text"
-                    placeholder="Amount to send"
-                  />
-                  <a href="https://abi.hashex.org/" target="_blank" className="underline" rel="noreferrer">
-                    Calculate TxData from ABI
-                  </a>
-
-                  <input
-                    onChange={e => setCustomTx(e.target.value)}
-                    className="input input-bordered w-full my-5"
-                    type="text"
-                    placeholder="Enter custom tx"
-                  />
-                  <button onClick={sendCustomTxWithPKP} className="btn btn-primary">
-                    Send
-                  </button>
-
-                  <div className="modal-action">
-                    <label htmlFor="customtx-modal" className="btn">
-                      Close
-                    </label>
-                  </div>
-                </div>
-              </div>
-              <label htmlFor="swap-modal" className="btn btn-circle m-5">
-                <ArrowsRightLeftIcon className="hover:animate-spin" />
-              </label>
-              <input type="checkbox" id="swap-modal" className="modal-toggle" />
-              <div className="modal">
-                <div className="modal-box">
-                  <h3 className="font-bold text-lg">Swap ERC20</h3>
-                  ⚠️ Check if the pool exists on Uniswap before swapping
-                  <p>
-                    Powered by
-                    <Image src={UniswapIcon} width={80} height={80} alt="Uniswap" className="hover:animate-zoom" />
-                  </p>
-                  <select
-                    onChange={e => {
-                      setTokenFrom(e.target.value);
-                      setTokenToApprove(e.target.value);
-                    }}
-                    className="select select-bordered w-full mb-4 my-5"
-                    placeholder="Select Token"
-                  >
-                    {tokenInWallet.map((token, index) => {
-                      return (
-                        <option key={index} value={token.address}>
-                          <div>{token.name}</div>
-                        </option>
-                      );
-                    })}
-                  </select>
-                  <select
-                    onChange={e => setTokenTo(e.target.value)}
-                    className="select select-bordered w-full mb-4"
-                    placeholder="Select Token"
-                  >
-                    {tokenList.map((token, index) => {
-                      return (
-                        <option key={index} value={token.address}>
-                          <div>{token.name}</div>
-                        </option>
-                      );
-                    })}
-                  </select>
-                  <input
-                    onChange={e => setAmountToSwap(e.target.value)}
-                    className="input input-bordered w-full mb-4"
-                    type="text"
-                    placeholder="Amount To Swap"
-                  />
-                  <button onClick={swapUniswapExactInputSingle} className="btn btn-primary">
-                    Swap
-                  </button>
-                  <div className="modal-action">
-                    <label htmlFor="swap-modal" className="btn">
-                      Close
-                    </label>
-                  </div>
-                </div>
-              </div>
-              <a href={zapperUrl!} target="_blank" className="btn btn-circle m-5" rel="noreferrer">
-                <ArchiveBoxIcon className="hover:animate-zoom" />
-              </a>
-            </div>
-            <div className="flex items-center justify-between mb-10 mt-10">
-              <p className="text-left  mx-2"> ↩️ Switch </p>
-              <select
-                className="select select-bordered"
-                onChange={async e => {
-                  createSession(pkps.find(p => p.ethAddress === e.target.value));
-                }}
-                z
-              >
-                {pkps.map(pkp => (
-                  <option key={pkp.ethAddress} value={pkp.ethAddress}>
-                    {pkp.ethAddress}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <button className="btn btn-primary" onClick={mint}>
-              Mint another PKP
-            </button>
-            {tokenInWallet && (
-              <div className="grid md:grid-cols-2 sm:grid-cols lg:grid-cols-2 gap-4 my-10">
-                {tokenInWallet.map((token, index) => {
-                  return (
-                    <div className="bg-base-300 shadow-lg rounded-lg p-6" key={index}>
-                      <div className="flex items-center justify-between">
-                        <h2 className="text-lg font-bold">{token.name}</h2>
-                        <img src={token.logoURI} className="w-10 h-10" alt={`${token.name} logo`} />
-                      </div>
-                      <p className="text-sm text-primary">{token.symbol}</p>
-                      <p className="text-lg font-bold">
-                        {token.decimals == 18
-                          ? String(token.balance / 1e18)
-                          : token.decimals == 6
-                          ? String(token.balance / 1e6)
-                          : token.decimals == 8
-                          ? String(token.balance / 1e8)
-                          : String(token.balance / 1e12)}
-                      </p>
-                      <p className="text-xs text-gray-500">{token.address}</p>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-            {yourWallit === "0x0000000000000000000000000000000000000000" && yourWallit ? (
               <div>
-                <button
-                  className="btn btn-primary my-5"
-                  onClick={async () => {
-                    createWallit();
+                <div className="w-fit mx-auto">
+                  <Address address={currentPKP?.ethAddress} format="short" />
+                </div>
+                <div className="items-center flex flex-row">
+                  <p className="text-6xl font-light   hover:animate-pulse-fast  items-center text-center  mx-auto my-10">
+                    💲{Number(balance).toFixed(3)}
+                  </p>
+                  <div
+                    className="btn btn-circle   text-2xl mx-10 "
+                    onClick={async () => {
+                      fetchTokenInWallet();
+                      const portfolio = await getPortfolio(
+                        stubAuthSig,
+                        litNodeClient,
+                        tokenInWallet,
+                        currentPKP?.ethAddress,
+                        provider,
+                      );
+
+                      //await getStrategyExecutionPlanMock(portfolio.data, JSON.stringify(fakeData.strategy));
+                      // await getStrategyExecutionPlan(
+                      //   litNodeClient,
+                      //   stubAuthSig,
+                      //   portfolio.data,
+                      //   JSON.stringify(fakeData.strategy),
+                      // );
+                      await runBalancePortfolio({
+                        litNodeClient,
+                        stubAuthSig,
+                        portfolio: portfolio.data,
+                        pkpPublicKey: currentPKP?.publicKey,
+                        strategy: JSON.stringify(fakeData.strategy),
+                        provider,
+                      });
+                    }}
+                  >
+                    <ArrowPathIcon className="hover:animate-spin" height={30} width={30} />
+                  </div>
+                </div>
+              </div>
+              <div className="flex-row mx-1">
+                <label htmlFor="send-modal" className="btn btn-circle m-5">
+                  <ArrowRightCircleIcon className="hover:animate-zoom" />
+                </label>
+                <input type="checkbox" id="send-modal" className="modal-toggle" />
+                <div className="modal">
+                  <div className="modal-box">
+                    <h3 className="font-bold text-lg m-2">Send ETH</h3>
+                    <input
+                      onChange={e => setAmountToSend(e.target.value)}
+                      className="input input-bordered w-full mb-4"
+                      type="text"
+                      required
+                      placeholder="Enter amount to send"
+                    />
+                    <input
+                      onChange={e => setTargetAddress(e.target.value)}
+                      className="input input-bordered w-full mb-4"
+                      type="text"
+                      required
+                      placeholder="Receiver "
+                    />
+
+                    <button onClick={sendETHWithPKP} className="btn btn-primary">
+                      Send ETH
+                    </button>
+                    <div className="divider mb-5 mt-5" />
+                    <h3 className="font-bold text-lg m-2">Wrap/Unwrap</h3>
+
+                    <input
+                      onChange={e => setAmountToSend(e.target.value)}
+                      className="input input-bordered w-full mb-4"
+                      type="text"
+                      required
+                      placeholder="Enter amount to send"
+                    />
+
+                    <button onClick={wrapETHWithPKP} className="btn btn-primary mx-2">
+                      Wrap ETH
+                    </button>
+                    <button onClick={unwrapETHWithPKP} className="btn btn-primary">
+                      Unwrap ETH
+                    </button>
+                    <div className="divider mb-5 mt-5" />
+                    <h3 className="font-bold text-lg m-2">Send ERC20</h3>
+                    <input
+                      onChange={e => setAmountToSend(e.target.value)}
+                      className="input input-bordered w-full mb-4"
+                      type="text"
+                      required
+                      placeholder="Enter amount to send"
+                    />
+                    <input
+                      onChange={e => setTargetAddress(e.target.value)}
+                      className="input input-bordered w-full mb-4"
+                      type="text"
+                      required
+                      placeholder="Receiver "
+                    />
+                    <select
+                      onChange={e => setTokenToApprove(e.target.value)}
+                      className="select select-bordered w-full mb-4"
+                    >
+                      {tokenInWallet.map(token => (
+                        <option key={token.address} value={token.address}>
+                          {token.symbol}
+                        </option>
+                      ))}
+                    </select>
+
+                    <button onClick={approveERC20WithPKP} className="btn btn-primary mx-2">
+                      Approve
+                    </button>
+                    <button onClick={transferERC20WithPKP} className="btn btn-primary">
+                      Transfer
+                    </button>
+                    <div className="modal-action">
+                      <label htmlFor="send-modal" className="btn">
+                        Close
+                      </label>
+                    </div>
+                  </div>
+                </div>
+
+                <label htmlFor="receive-modal" className="btn btn-circle m-5">
+                  <ArrowDownCircleIcon className="hover:animate-zoom" />
+                </label>
+                <input type="checkbox" id="receive-modal" className="modal-toggle" />
+                <div className="modal">
+                  <div className="modal-box">
+                    <div className="mx-auto text-center items-center w-fit">
+                      <QRCodeCanvas
+                        id="qrCode"
+                        value={String(qrCodeUrl)}
+                        size={300}
+                        style={{ alignItems: "center" }}
+                        /* bgColor={"#00ff00"} */ level={"H"}
+                      />
+                    </div>
+                    <div className="modal-action">
+                      <label htmlFor="receive-modal" className="btn">
+                        Close
+                      </label>
+                    </div>
+                  </div>
+                </div>
+                <label htmlFor="customtx-modal" className="btn btn-circle m-5">
+                  <ArrowUpCircleIcon className="hover:animate-zoom" />
+                </label>
+                <input type="checkbox" id="customtx-modal" className="modal-toggle" />
+                <div className="modal">
+                  <div className="modal-box">
+                    <h3 className="font-bold text-lg m-2">Custom Tx</h3>
+
+                    <input
+                      onChange={e => setTargetAddress(e.target.value)}
+                      className="input input-bordered w-full mb-4"
+                      type="text"
+                      placeholder="Target Address"
+                    />
+                    <input
+                      value={amountToSend}
+                      onChange={e => setAmountToSend(e.target.value)}
+                      className="input input-bordered w-full mb-4"
+                      type="text"
+                      placeholder="Amount to send"
+                    />
+                    <a href="https://abi.hashex.org/" target="_blank" className="underline" rel="noreferrer">
+                      Calculate TxData from ABI
+                    </a>
+
+                    <input
+                      onChange={e => setCustomTx(e.target.value)}
+                      className="input input-bordered w-full my-5"
+                      type="text"
+                      placeholder="Enter custom tx"
+                    />
+                    <button onClick={sendCustomTxWithPKP} className="btn btn-primary">
+                      Send
+                    </button>
+
+                    <div className="modal-action">
+                      <label htmlFor="customtx-modal" className="btn">
+                        Close
+                      </label>
+                    </div>
+                  </div>
+                </div>
+                <label htmlFor="swap-modal" className="btn btn-circle m-5">
+                  <ArrowsRightLeftIcon className="hover:animate-spin" />
+                </label>
+                <input type="checkbox" id="swap-modal" className="modal-toggle" />
+                <div className="modal">
+                  <div className="modal-box">
+                    <h3 className="font-bold text-lg">Swap ERC20</h3>
+                    ⚠️ Check if the pool exists on Uniswap before swapping
+                    <p>
+                      Powered by
+                      <Image src={UniswapIcon} width={80} height={80} alt="Uniswap" className="hover:animate-zoom" />
+                    </p>
+                    <select
+                      onChange={e => {
+                        setTokenFrom(e.target.value);
+                        setTokenToApprove(e.target.value);
+                      }}
+                      className="select select-bordered w-full mb-4 my-5"
+                      placeholder="Select Token"
+                    >
+                      {tokenInWallet.map((token, index) => {
+                        return (
+                          <option key={index} value={token.address}>
+                            <div>{token.name}</div>
+                          </option>
+                        );
+                      })}
+                    </select>
+                    <select
+                      onChange={e => setTokenTo(e.target.value)}
+                      className="select select-bordered w-full mb-4"
+                      placeholder="Select Token"
+                    >
+                      {tokenList.map((token, index) => {
+                        return (
+                          <option key={index} value={token.address}>
+                            <div>{token.name}</div>
+                          </option>
+                        );
+                      })}
+                    </select>
+                    <input
+                      onChange={e => setAmountToSwap(e.target.value)}
+                      className="input input-bordered w-full mb-4"
+                      type="text"
+                      placeholder="Amount To Swap"
+                    />
+                    <button onClick={swapUniswapExactInputSingle} className="btn btn-primary">
+                      Swap
+                    </button>
+                    <div className="modal-action">
+                      <label htmlFor="swap-modal" className="btn">
+                        Close
+                      </label>
+                    </div>
+                  </div>
+                </div>
+                <a href={zapperUrl!} target="_blank" className="btn btn-circle m-5" rel="noreferrer">
+                  <ArchiveBoxIcon className="hover:animate-zoom" />
+                </a>
+              </div>
+              <div className="flex items-center mb-10 mt-5">
+                <span className="mx-5 font-medium">Switch to</span>
+                <select
+                  className="select"
+                  onChange={async e => {
+                    createSession(pkps.find(p => p.ethAddress === e.target.value));
                   }}
                 >
-                  Name your account
-                </button>
+                  {pkps.map(pkp => (
+                    <option key={pkp.ethAddress} value={pkp.ethAddress}>
+                      <Address address={pkp.ethAddress} format="short" />
+                    </option>
+                  ))}
+                </select>
               </div>
-            ) : null}
-            <div className="w-fit mt-10 text-left">
-              <div className="mx-4">
-                <h1 className="text-lg">Give a name to yuour Wallit 🤖</h1>
-                <div className="card card-compact mb-10">
-                  <input
-                    className="input input-primary w-full  mt-5"
-                    type="text"
-                    placeholder="Name your WALLIT"
-                    onChange={e => {
-                      setWallitName(e.target.value);
-                    }}
-                  />
+              <button className="btn btn-md" onClick={mint}>
+                Mint another PKP
+              </button>
+              {tokenInWallet && (
+                <div className="grid md:grid-cols-2 sm:grid-cols lg:grid-cols-2 gap-4 my-10">
+                  {tokenInWallet.map((token, index) => {
+                    return (
+                      <div className="bg-base-300 shadow-lg rounded-lg p-6" key={index}>
+                        <div className="flex items-center justify-between">
+                          <h2 className="text-lg font-bold">{token.name}</h2>
+                          <img src={token.logoURI} className="w-10 h-10" alt={`${token.name} logo`} />
+                        </div>
+                        <p className="text-sm text-primary">{token.symbol}</p>
+                        <p className="text-lg font-bold">
+                          {token.decimals == 18
+                            ? String(token.balance / 1e18)
+                            : token.decimals == 6
+                            ? String(token.balance / 1e6)
+                            : token.decimals == 8
+                            ? String(token.balance / 1e8)
+                            : String(token.balance / 1e12)}
+                        </p>
+                        <p className="text-xs text-gray-500">{token.address}</p>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+              {yourWallit === ethers.constants.AddressZero && yourWallit ? (
+                <div>
                   <button
-                    className="btn btn-primary  mt-5"
-                    onClick={() => {
-                      txData(executeSetWallitName?.writeAsync?.());
+                    className="btn btn-primary my-5"
+                    onClick={async () => {
+                      createWallit();
                     }}
                   >
-                    set name
+                    Name your account
                   </button>
                 </div>
+              ) : null}
+              <div className="w-fit mt-10 text-left">
+                <div className="mx-4">
+                  <h1 className="text-lg">Give a name to yuour Wallit 🤖</h1>
+                  <div className="card card-compact mb-10">
+                    <input
+                      className="input input-primary w-full  mt-5"
+                      type="text"
+                      placeholder="Name your WALLIT"
+                      onChange={e => {
+                        setWallitName(e.target.value);
+                      }}
+                    />
+                    <button
+                      className="btn btn-primary  mt-5"
+                      onClick={() => {
+                        txData(executeSetWallitName?.writeAsync?.());
+                      }}
+                    >
+                      set name
+                    </button>
+                  </div>
+                </div>
               </div>
-            </div>
-            <div className="collapse">
-              <input type="checkbox" />
-              <div className="collapse-title text-2xl font-extrabold">👇🏻DO NOT TRUST VERIFY!</div>
-              <div className="collapse-content bg-secondary rounded-lg">
-                <p className="text-lg">Write a message and Sign it with your PKP</p>
-                <input
-                  onChange={e => setMessage(e.target.value)}
-                  className="input input-bordered w-96 m-1 py-2"
-                  type="text"
-                  required
-                  placeholder="Enter message to sign"
-                />
-                <br></br>
-                <button className="btn btn-primary my-5" onClick={signMessageWithPKP}>
-                  Sign message
-                </button>
-                {signature && (
-                  <>
-                    <h3 className="text-lg">Your signature:</h3>
-                    <p className="break-all font-bold">{signature}</p>
-                    <h2 className="text-lg">Recovered address</h2>
-                    <p className="font-bold">{recoveredAddress}</p>
-                    <h3>Verified</h3>
-                    <p className="font-bold">{verified ? "true" : "false"}</p>
-                  </>
-                )}
+              <div className="collapse">
+                <input type="checkbox" />
+                <div className="collapse-title text-2xl font-extrabold">👇🏻DO NOT TRUST VERIFY!</div>
+                <div className="collapse-content bg-secondary rounded-lg">
+                  <p className="text-lg">Write a message and Sign it with your PKP</p>
+                  <input
+                    onChange={e => setMessage(e.target.value)}
+                    className="input input-bordered w-96 m-1 py-2"
+                    type="text"
+                    required
+                    placeholder="Enter message to sign"
+                  />
+                  <br></br>
+                  <button className="btn btn-primary my-5" onClick={signMessageWithPKP}>
+                    Sign message
+                  </button>
+                  {signature && (
+                    <>
+                      <h3 className="text-lg">Your signature:</h3>
+                      <p className="break-all font-bold">{signature}</p>
+                      <h2 className="text-lg">Recovered address</h2>
+                      <p className="font-bold">{recoveredAddress}</p>
+                      <h3>Verified</h3>
+                      <p className="font-bold">{verified ? "true" : "false"}</p>
+                    </>
+                  )}
+                </div>
               </div>
             </div>
           </>

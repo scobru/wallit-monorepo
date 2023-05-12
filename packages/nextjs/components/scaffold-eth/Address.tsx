@@ -78,7 +78,7 @@ export const Address = ({ address, disableAddressLink, format }: TAddressProps) 
         <span className="ml-1.5 text-lg font-normal">{displayAddress}</span>
       ) : (
         <a
-          className="ml-1.5 text-lg font-normal"
+          className="ml-1.5 text-lg font-normal break-all"
           target="_blank"
           href={blockExplorerAddressLink}
           rel="noopener noreferrer"

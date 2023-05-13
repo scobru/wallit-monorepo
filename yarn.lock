@@ -17676,6 +17676,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"tslog@npm:^4.8.2":
+  version: 4.8.2
+  resolution: "tslog@npm:4.8.2"
+  checksum: 04d2c2c68be53578b090ff1729b08ee23f3b5c8c509d6ffa332c43d25bcb9599ede8cce1db2c9dcb29ea3647b21c47c1ba11180ee9652a03c901702199dc87cd
+  languageName: node
+  linkType: hard
+
 "tsort@npm:0.0.1":
   version: 0.0.1
   resolution: "tsort@npm:0.0.1"
@@ -18294,6 +18301,7 @@ __metadata:
     husky: ^8.0.1
     lint-staged: ^13.0.3
     react-metamask-avatar: ^1.2.1
+    tslog: ^4.8.2
   languageName: unknown
   linkType: soft
 

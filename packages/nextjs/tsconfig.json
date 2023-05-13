@@ -18,6 +18,12 @@
       "~~/*": ["./*"]
     }
   },
-  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", "actions/portfolio-rebalance.js"],
+  "include": [
+    "next-env.d.ts",
+    "**/*.ts",
+    "**/*.tsx",
+    "actions/portfolio-rebalance.js",
+    "actions/get-usd-price.action.tsx"
+  ],
   "exclude": ["node_modules"]
 }

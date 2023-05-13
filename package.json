@@ -35,6 +35,7 @@
   },
   "dependencies": {
     "@lit-protocol/lit-node-client-nodejs": "^2.1.135",
-    "react-metamask-avatar": "^1.2.1"
+    "react-metamask-avatar": "^1.2.1",
+    "tslog": "^4.8.2"
   }
 }

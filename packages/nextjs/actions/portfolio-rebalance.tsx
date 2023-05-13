@@ -27,74 +27,6 @@ import { erc20ABI } from "wagmi";
  * @param { string } symbol eg. "ETH", "USDT", "DAI"
  * @return { { Response  } } eg. { status: 200, data: 1234.56 }
  */
-export async function getUSDPrice(client: any, authSig: any, symbol: any) {
-  console.log(`[Lit Action] Running Lit Action to get ${symbol}/USD price...`);
-
-  const code = getUsdPriceAction;
-  const res = await client.executeJs({
-    targetNodeRange: 10,
-    authSig: authSig!,
-    code: code,
-    jsParams: {
-      tokenSymbol: symbol,
-    },
-  });
-
-  console.log(`[Lit Action] Lit Action to get ${symbol}/USD price completed.`);
-  console.log(res.response);
-  return res.response;
-}
-
-/**
- *
- * This function is used to get the current balances of the specified ERC20 tokens.
- * It takes in the `tokens` array, `pkpAddress` (public key pair address) and the `provider`
- * as arguments and returns an array of objects containing the token symbol, balance and value.
- *
- * @param { Array<SwapToken> } tokens
- * @param { string } pkpAddress
- * @param { JsonRpcProvider } provider
- * @returns { CurrentBalance }
- */
-
-export async function getPortfolio(authSig: any, client: any, tokens: any[], pkpAddress: any, provider: any) {
-  console.log(`[Lit Action] [FAKE] Running Lit Action to get portfolio...`);
-
-  // Using Promise.all, we retrieve the balance and value of each token in the `tokens` array.
-  const balances = await Promise.all(
-    tokens.map(async token => {
-      console.log(token);
-      const ERC20 = new ethers.Contract(token.address, erc20ABI, provider);
-
-      // Get the token balance using the `ERC20.getBalance` method.
-      let balance = await ERC20.balanceOf(pkpAddress);
-
-      // Get the number of decimal places of the token using the `ERC20.getDecimals` method.
-      const decimals = token.decimals;
-      console.log("Decimals", decimals);
-
-      // Format the token balance to have the correct number of decimal places.
-      balance = parseFloat(ethers.utils.formatUnits(balance, decimals));
-
-      // Get the token symbol using the `tokenSymbolMapper` or the original symbol if not found.
-      const priceSymbol = token.symbol;
-
-      // Get the token value in USD using the `getUSDPrice` function.
-      const value = (await getUSDPrice(client, authSig, priceSymbol)).data * balance;
-
-      console.log(token, balance, value);
-
-      // Return an CurrentBalance object containing the token symbol, balance and value.
-      return {
-        token,
-        balance,
-        value,
-      };
-    }),
-  );
-
-  return { status: 200, data: balances };
-}
 
 export async function getStrategyExecutionPlanMock(tokens: any[], strategy: string | any[]) {
   console.log("Strategy", Array(strategy));
@@ -706,7 +638,7 @@ export async function runBalancePortfolio({
     },
   };
 }
-
+/* 
 // ------------------------------------------
 //          Run Rebalance Function
 // ------------------------------------------
@@ -737,4 +669,4 @@ const go = async () => {
   console.log("[Task] res:", res);
 };
 
-go();
+go(); */

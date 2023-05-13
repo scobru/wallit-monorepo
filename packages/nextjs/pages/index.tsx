@@ -3,7 +3,6 @@ import Head from "next/head";
 import Image from "next/image";
 import { useRouter } from "next/router";
 import {
-  getPortfolio,
   getStrategyExecutionPlan,
   getStrategyExecutionPlanMock,
   runBalancePortfolio,
@@ -27,6 +26,7 @@ import { AuthMethod, AuthSig, IRelayPKP, SessionSigs } from "@lit-protocol/types
 import "@uniswap/widgets/fonts.css";
 import { multicall } from "@wagmi/core";
 import { P } from "@wagmi/core/dist/index-35b6525c";
+import { getUsdPriceAction } from "actions/get-usd-price.action";
 import { Contract, ethers } from "ethers";
 import {
   Interface,
@@ -166,8 +166,8 @@ const Home: NextPage = () => {
   const fakeData = {
     pkpPublicKey: currentPKP?.publicKey,
     strategy: [
-      { token: "WMATIC", percentage: 40 },
-      { token: "MATIC", percentage: 60 },
+      { token: "USDT", percentage: 40 },
+      { token: "USDC", percentage: 60 },
     ],
     conditions: {
       maxGasPrice: 75,
@@ -184,27 +184,6 @@ const Home: NextPage = () => {
 
   // if metamask is disconnected change view with setView
 
-  useEffect(() => {
-    if (wallitCtx && yourWallit != ethers.constants.AddressZero && signer && currentPKP?.ethAddress) {
-      const contract = new ethers.Contract(String(yourWallit), wallitCtx?.abi, signer || provider);
-      // fetch ETH amount of an address with ethers
-      const getBalance = async () => {
-        const balance = await provider.getBalance(currentPKP?.ethAddress);
-        setBalance(ethers.utils.formatEther(balance));
-      };
-      getBalance();
-
-      const getWallitNames = async () => {
-        const name = await contract.getNames(currentPKP?.ethAddress);
-
-        setWallitDescription(name);
-      };
-      getWallitNames();
-    } else {
-      setWallitDescription("");
-    }
-  }, [block, signer, provider, wallitCtx, currentPKP?.ethAddress, balance]);
-
   // Use wagmi to connect one's eth wallet
   /* const { connectAsync } = useConnect({
     onError(error) {
@@ -215,19 +194,6 @@ const Home: NextPage = () => {
 
   const { isConnected, connector, address } = useAccount();
   const { disconnectAsync } = useDisconnect();
-
-  /* useEffect(() => {
-    if (!address) {
-      setView(Views.SIGN_IN);
-    }
-  }, [address]);
-
-  // On address change, fetch the PKPs
-  useEffect(() => {
-    if (address) {
-      setView(Views.SIGN_IN);
-    }
-  }, [address]); */
 
   async function fetchTokenList() {
     console.log("Fetch Token List");
@@ -283,11 +249,6 @@ const Home: NextPage = () => {
       console.log("Token In Wallet", _tokens);
     }
   }
-
-  useEffect(() => {
-    fetchTokenList();
-    fetchTokenInWallet();
-  }, []);
 
   async function processTransaction(tx: {
     to: any;
@@ -746,6 +707,7 @@ const Home: NextPage = () => {
     });
     setCurrentProviderType(ProviderType.EthWallet);
     setAuthMethod(authMethod);
+    setAuthSig(JSON.parse(authMethod?.accessToken as string));
 
     // Fetch PKPs associated with eth wallet account
     setView(Views.FETCHING);
@@ -990,6 +952,43 @@ const Home: NextPage = () => {
     }
   }
 
+  /** USE EFFECTS **/
+
+  useEffect(() => {
+    fetchTokenList();
+    fetchTokenInWallet();
+  }, []);
+
+  /* useEffect(() => {
+    if (!address) {
+      setView(Views.SIGN_IN);
+    }
+  }, [address]);
+
+  useEffect(() => {
+    if (address) {
+      setView(Views.SIGN_IN);
+    }
+  }, [address]); */
+
+  useEffect(() => {
+    if (wallitCtx && yourWallit != ethers.constants.AddressZero && signer && currentPKP?.ethAddress) {
+      const contract = new ethers.Contract(String(yourWallit), wallitCtx?.abi, signer || provider);
+      const getBalance = async () => {
+        const balance = await provider.getBalance(currentPKP?.ethAddress);
+        setBalance(ethers.utils.formatEther(balance));
+      };
+      getBalance();
+      const getWallitNames = async () => {
+        const name = await contract.getNames(currentPKP?.ethAddress);
+        setWallitDescription(name);
+      };
+      getWallitNames();
+    } else {
+      setWallitDescription("");
+    }
+  }, [block, signer, provider, wallitCtx, currentPKP?.ethAddress, balance]);
+
   useEffect(() => {
     /**
      * Initialize LitNodeClient and LitAuthClient
@@ -1043,11 +1042,103 @@ const Home: NextPage = () => {
     return null;
   }
 
+  async function getUSDPrice(symbol: any) {
+    console.log(`[Lit Action] Running Lit Action to get ${symbol}/USD price...`);
+
+    const res = await litNodeClient!.executeJs({
+      targetNodeRange: 10,
+      authSig: authSig as AuthSig,
+      code: getUsdPriceAction,
+      jsParams: {
+        tokenSymbol: symbol,
+      },
+    });
+    return res.response;
+  }
+
+
+  async function getUSDPriceDirect(symbol: any) {
+    const API = "https://min-api.cryptocompare.com/data/price?fsym=" + symbol + "&tsyms=USD";
+    console.log("API", API)
+      let res;
+      let data;
+      let response;
+
+      try {
+        res = await fetch(API);
+        data = await res.json();
+      } catch (e) {
+        console.log(e);
+      }
+
+      if (!res) {
+        return { status: 500, data: null };
+    }
+
+    return { status: 200, data: data.USD };
+
+    };
+
+  
+
   /**
-   * ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-   * Portfolio Section
-   * ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+   *
+   * This function is used to get the current balances of the specified ERC20 tokens.
+   * It takes in the `tokens` array, `pkpAddress` (public key pair address) and the `provider`
+   * as arguments and returns an array of objects containing the token symbol, balance and value.
+   *
+   * @param { Array<SwapToken> } tokens
+   * @param { string } pkpAddress
+   * @param { JsonRpcProvider } provider
+   * @returns { CurrentBalance }
    */
+
+  async function getPortfolio(tokens: any[], pkpAddress: any, provider: any) {
+    console.log(`[Lit Action] [FAKE] Running Lit Action to get portfolio...`);
+
+    const tokenSymbolMapper = {
+      MATIC: "MATIC",
+      UNI: "UNI",
+    };
+
+    // Using Promise.all, we retrieve the balance and value of each token in the `tokens` array.
+    const balances = await Promise.all(
+      tokens.map(async token => {
+        const ERC20 = new ethers.Contract(token.address, erc20ABI, provider);
+
+        // Get the token balance using the `ERC20.getBalance` method.
+        let balance = await ERC20.balanceOf(pkpAddress);
+
+        // Get the number of decimal places of the token using the `ERC20.getDecimals` method.
+        const decimals = token.decimals;
+
+        // Format the token balance to have the correct number of decimal places.
+        balance = parseFloat(ethers.utils.formatUnits(balance, decimals));
+
+        // Get the token symbol using the `tokenSymbolMapper` or the original symbol if not found.
+        const priceSymbol = token.symbol;
+        //const priceSymbol = tokenSymbolMapper[token.symbol] ?? token.symbol;
+
+        // Get the token value in USD using the `getUSDPrice` function.
+        //const priceResult = await getUSDPrice(priceSymbol);
+        const priceResult = await getUSDPriceDirect(priceSymbol);
+        console.log("priceResult",  priceResult)
+
+        const value = (await priceResult.data.USD) * balance;
+
+        console.log(token, balance, value);
+
+        // Return an CurrentBalance object containing the token symbol, balance and value.
+        return {
+          token,
+          balance,
+          value,
+        };
+      }),
+    );
+
+    return { status: 200, data: balances };
+  }
 
   return (
     <>
@@ -1247,29 +1338,42 @@ const Home: NextPage = () => {
                     className="btn btn-circle   text-2xl mx-10 "
                     onClick={async () => {
                       fetchTokenInWallet();
-                      const portfolio = await getPortfolio(
-                        stubAuthSig,
-                        litNodeClient,
-                        tokenInWallet,
-                        currentPKP?.ethAddress,
-                        provider,
+
+                      // select MATIC and WMATIC and create new array from tokenInWallet
+                      const tokenInWalletFilter = tokenInWallet?.filter(
+                        token => token.symbol === "UNI" || token.symbol === "MATIC",
                       );
 
-                      //await getStrategyExecutionPlanMock(portfolio.data, JSON.stringify(fakeData.strategy));
+                      console.log(tokenInWalletFilter)
+
+                      let portfolio = [];
+
+                      try {
+                        const res = await getPortfolio(tokenInWalletFilter, currentPKP?.ethAddress, provider);
+                        portfolio = res.data;
+                      } catch (e) {
+                        const msg = `Error getting portfolio: ${e.message}`;
+                        console.log(`[BalancePortfolio] ${msg}`);
+                        return { status: 500, data: msg };
+                      }
+
+                      //await getStrategyExecutionPlanMock(portfolio, JSON.stringify(fakeData.strategy));
+
                       // await getStrategyExecutionPlan(
                       //   litNodeClient,
                       //   stubAuthSig,
                       //   portfolio.data,
                       //   JSON.stringify(fakeData.strategy),
                       // );
-                      await runBalancePortfolio({
-                        litNodeClient,
-                        stubAuthSig,
-                        portfolio: portfolio.data,
+
+                      /* await runBalancePortfolio({
+                        client: litNodeClient,
+                        authSig: _authSig,
+                        tokens: tokenInWallet,
                         pkpPublicKey: currentPKP?.publicKey,
                         strategy: JSON.stringify(fakeData.strategy),
                         provider,
-                      });
+                      }); */
                     }}
                   >
                     <ArrowPathIcon className="hover:animate-spin" height={30} width={30} />

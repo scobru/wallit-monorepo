@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useReducer, useState } from "react";
 import Head from "next/head";
 import Image from "next/image";
 import { useRouter } from "next/router";
@@ -6,6 +6,7 @@ import { useScaffoldContractRead, useTransactor } from "../hooks/scaffold-eth";
 import { useScaffoldContractWrite } from "../hooks/scaffold-eth";
 import UniswapIcon from "../uniswap.png";
 import { addresses } from "../utils/constant";
+import { getWalletAuthSig } from "../utils/get-wallet-auth-sig";
 import { getStrategyExecutionPlanAction } from "./actions/get-strategy-execution-plan";
 import { getTokenPriceAction } from "./actions/get-token-price";
 import { ProviderType } from "@lit-protocol/constants";
@@ -25,12 +26,16 @@ import { P } from "@wagmi/core/dist/index-35b6525c";
 import { Contract, ethers } from "ethers";
 import {
   Interface,
+  arrayify,
+  computeAddress,
   computePublicKey,
   joinSignature,
+  keccak256,
   parseEther,
   parseUnits,
   recoverAddress,
   recoverPublicKey,
+  serializeTransaction,
   verifyMessage,
 } from "ethers/lib/utils.js";
 import { NextPage } from "next";
@@ -59,6 +64,8 @@ import { Address } from "~~/components/scaffold-eth";
 import { useDeployedContractInfo } from "~~/hooks/scaffold-eth";
 import { notification } from "~~/utils/scaffold-eth";
 
+const StateReducer = "../utils/StateReducer";
+
 // Local dev only: When using npm link, need to update encryption pkg to handle possible ipfs client init error
 // let ipfsClient = null;
 // try {
@@ -83,7 +90,7 @@ enum Views {
 }
 
 const Home: NextPage = () => {
-  const redirectUri = "https://localhost:3000/wallet";
+  const redirectUri = "https://localhost:3000";
   const { data: signer } = useSigner();
   const account = useAccount();
   const signerAddress = account?.address;
@@ -92,6 +99,9 @@ const Home: NextPage = () => {
   const chainName = "polygon";
   const txData = useTransactor();
   const block = useBlockNumber();
+
+  const getStrategyExecutionPlanRaw = "../actions/get-strategy-execution-plan-raw";
+  const getTokenPriceRaw = "../actions/get-token-price-raw";
 
   const { data: wallitCtx } = useDeployedContractInfo("Wallit");
 
@@ -115,7 +125,7 @@ const Home: NextPage = () => {
   const [pkps, setPKPs] = useState<IRelayPKP[]>([]);
   const [currentPKP, setCurrentPKP] = useState<IRelayPKP>();
   const [sessionSigs, setSessionSigs] = useState<SessionSigs>();
-  const [authSig, setAuthSig] = useState<AuthSig>();
+  const [, setAuthSig] = useState<AuthSig>();
   const [message, setMessage] = useState<string>("Free the web!");
   const [signature, setSignature] = useState<string>();
   const [recoveredAddress, setRecoveredAddress] = useState<string>();
@@ -132,9 +142,30 @@ const Home: NextPage = () => {
   const [amountToSwap, setAmountToSwap] = useState<string>();
   const [tokenList, setTokenList] = useState<string[]>([]);
   const [tokenInWallet, setTokenInWallet] = useState<string[]>([]);
-
   const zapperUrl = "https://zapper.xyz/account/" + currentPKP?.ethAddress || undefined;
   const qrCodeUrl = "ethereum:" + currentPKP?.ethAddress + "/pay?chain_id=137value=0";
+
+  const [state, dispatch] = useReducer(StateReducer, {
+    data: {
+      jsCode: getTokenPriceRaw,
+      //jsonCode: JSON.parse(ssProp.demoParams),
+    },
+    loading: false,
+  });
+
+  const LitActions = {
+    call: async executeJsProps => {
+      const client = new LitNodeClient({
+        litNetwork: "serrano",
+        debug: false,
+      });
+      await client.connect();
+
+      const sig = await client.executeJs(executeJsProps);
+
+      return sig;
+    },
+  };
 
   const executeSetWallitNamePrepared = usePrepareContractWrite({
     address: String(yourWallit),
@@ -142,27 +173,13 @@ const Home: NextPage = () => {
     functionName: "setName",
     args: [wallitName, String(currentPKP?.ethAddress)],
   });
-
   const executeSetWallitName = useContractWrite(executeSetWallitNamePrepared.config);
-
-  /* const stubPkpInfo = {
-    publicKey:
-      "0x04e0fe6a5e9447112a272b3bfea3cbcb48a730c731d9edd434417d30f5b25966cb8543cece8ba67fd6bbbb9ba952e28db541de9a898cca0257e5479033c3b7b021",
-  };
-
-  const stubAuthSig = {
-    sig: "0x2bdede6164f56a601fc17a8a78327d28b54e87cf3fa20373fca1d73b804566736d76efe2dd79a4627870a50e66e1a9050ca333b6f98d9415d8bca424980611ca1c",
-    derivedVia: "web3.eth.personal.sign",
-    signedMessage:
-      "localhost wants you to sign in with your Ethereum account:\n0x9D1a5EC58232A894eBFcB5e466E3075b23101B89\n\nThis is a key for Partiful\n\nURI: https://localhost/login\nVersion: 1\nChain ID: 1\nNonce: 1LF00rraLO4f7ZSIt\nIssued At: 2022-06-03T05:59:09.959Z",
-    address: "0x9D1a5EC58232A894eBFcB5e466E3075b23101B89",
-  }; */
 
   const fakeData = {
     pkpPublicKey: currentPKP?.publicKey,
     strategy: [
-      { token: "USDT", percentage: 40 },
-      { token: "USDC", percentage: 60 },
+      { token: "UNI", percentage: 50 },
+      { token: "WMATIC", percentage: 50 },
     ],
     conditions: {
       maxGasPrice: 75,
@@ -496,7 +513,7 @@ const Home: NextPage = () => {
     console.log("[Wallit]: getting uniswap allowance...");
 
     const allowance = await getAllowance(
-      tokenFrom!, // cEUR
+      tokenFrom, // cEUR
       currentPKP?.ethAddress, // owner
       addresses.polygon.uniswap.v3.SwapRouter02, // spender
       provider,
@@ -518,6 +535,8 @@ const Home: NextPage = () => {
     } else {
       console.log("[Wallit]: uniswap already approved...");
     }
+
+    console.log("[Wallit]: no approval needed, swapping...");
 
     // fech block timestamp ethers
 
@@ -555,7 +574,7 @@ const Home: NextPage = () => {
       nonce: await provider.getTransactionCount(currentPKP?.ethAddress as string),
       value: parseEther(amountToSend),
       gasPrice: await provider.getGasPrice(),
-      gasLimit: 5000000,
+      gasLimit: 500000,
       chainId: (await provider?.getNetwork()).chainId,
       data: data,
     };
@@ -931,9 +950,6 @@ const Home: NextPage = () => {
         address: recoveredAddr,
       };
 
-      setAuthSig(authSig);
-      console.log("authSig", authSig);
-
       setView(Views.SESSION_CREATED);
 
       return authSig;
@@ -1035,18 +1051,18 @@ const Home: NextPage = () => {
   }
 
   async function getUSDPrice(symbol: any) {
-    console.log(`[Lit Action] Running Lit Action to get ${symbol}/USD price...`);
+    console.log(`[Get USD Price] Running Lit Action to get ${symbol}/USD price...`);
 
     const res = await litNodeClient?.executeJs({
-      targetNodeRange: 10,
-      authSig: authSig as AuthSig,
+      sessionSigs: sessionSigs,
       code: getTokenPriceAction,
       jsParams: {
         tokenSymbol: symbol,
       },
+      authSig: undefined as unknown as AuthSig,
     });
 
-    console.log(`[Lit Action] Lit Action response:`, res);
+    console.log(`[Get USD Price] Lit Action response:`, res);
 
     return res;
   }
@@ -1063,13 +1079,13 @@ const Home: NextPage = () => {
    * @returns { CurrentBalance }
    */
 
-  async function getPortfolio(tokens: any[], pkpAddress: any, provider: any) {
+  async function getPortfolio(tokens: any[], pkpAddress: any, provider: any): CurrentBalance {
     console.log(`[Lit Action] [FAKE] Running Lit Action to get portfolio...`);
 
-    /* const tokenSymbolMapper = {
-      MATIC: "MATIC",
+    const tokenSymbolMapper = {
+      WMATIC: "MATIC",
       UNI: "UNI",
-    }; */
+    };
 
     // Using Promise.all, we retrieve the balance and value of each token in the `tokens` array.
     const balances = await Promise.all(
@@ -1086,9 +1102,8 @@ const Home: NextPage = () => {
         balance = parseFloat(ethers.utils.formatUnits(balance, decimals));
 
         // Get the token symbol using the `tokenSymbolMapper` or the original symbol if not found.
-        //const priceSymbol = tokenSymbolMapper[token.symbol] ?? token.symbol;
-
-        const priceSymbol = token.symbol;
+        const priceSymbol = tokenSymbolMapper[token.symbol] ?? token.symbol;
+        //const priceSymbol = token.symbol;
 
         // Get the token value in USD using the `getUSDPrice` function.
         const priceResult = await getUSDPrice(priceSymbol);
@@ -1117,19 +1132,22 @@ const Home: NextPage = () => {
    *
    * @returns { StrategyExecutionPlan }
    */
-  async function getStrategyExecutionPlan(
-    litNodeClient: any,
-    serverAuthSig: any,
-    portfolio: { token: any; balance: any; value: number }[],
-    strategy: any,
-  ) {
+
+  async function getStrategyExecutionPlan(portfolio: any, strategy: any): Promise<Response> {
     console.log(`[Lit Action] Running Lit Action to get strategy execution plan...`);
+    console.log(`[Strategy Ececution Plan] Running Lit Action to get strategy execution plan...`);
+
+    const privateKey = process.env.NEXT_PUBLIC_SERVER_PRIVATE_KEY;
+    const serverAuthSig = await getWalletAuthSig({
+      privateKey: privateKey as string,
+      chainId: 137,
+    });
+
     const code = getStrategyExecutionPlanAction;
 
-    console.log("Portfolio: ", portfolio);
-    console.log("Strategy: ", strategy);
+    console.log(`[Strategy Ececution Plan] ServerAuthSig:`, serverAuthSig);
 
-    const res = await litNodeClient.executeJs({
+    const res = await LitActions.call({
       targetNodeRange: 1,
       authSig: serverAuthSig,
       code: code,
@@ -1139,10 +1157,602 @@ const Home: NextPage = () => {
       },
     });
 
-    console.log("Lit Action Response: ", res);
-
     return res.response;
   }
+
+  // -------------------------------------------------------------------
+  //          Let's pretend this function lives on Lit Action
+  // -------------------------------------------------------------------
+  const executeSwap = async ({ jsParams }) => {
+    // --------------------------------------
+    //          Checking JS Params
+    // --------------------------------------
+
+    console.log("JS Params: ", jsParams);
+    console.log("[Execute Swap] Running Lit Action to execute swap...");
+
+    const { tokenIn, tokenOut, pkp, authSig, amountToSell, provider, conditions } = jsParams;
+
+    // if pkp.public key doesn't start with 0x, add it
+    if (!pkp.publicKey.startsWith("0x")) {
+      pkp.publicKey = "0x" + pkp.publicKey;
+    }
+
+    const pkpAddress = computeAddress(pkp.publicKey);
+
+    // ------------------------------------------------------------------------------
+    //          ! NOTE ! Let's pretend these functions works on Lit Action
+    // ------------------------------------------------------------------------------
+
+    const Lit = {
+      Actions: {
+        getGasPrice: () => provider.getGasPrice(),
+        getTransactionCount: (walletAddress: any) => provider.getTransactionCount(walletAddress),
+        getNetwork: () => provider.getNetwork(),
+        sendTransaction: (tx: any) => provider.sendTransaction(tx),
+      },
+    };
+
+    class Code {
+      static signEcdsa = `(async() => {
+      const sigShare = await LitActions.signEcdsa({ toSign, publicKey, sigName });
+    })();`;
+    }
+
+    // ------------------------------------
+    //          Helper Functions
+    // ------------------------------------
+    /**
+     * This will check if the tx has been approved by checking if the allowance is greater than 0
+     * @param { string } tokenInAddress
+     * @param { string } pkpAddress
+     * @param { string } swapRouterAddress
+     *
+     * @returns { BigNumber } allowance
+     */
+    const getAllowance = async ({ tokenInAddress, pkpAddress, swapRouterAddress }: string): BigNumber => {
+      console.log(`[Lit Action] Running Lit Action to get allowance...`);
+      console.log(`[Lit Action] tokenInAddress: ${tokenInAddress}`);
+      console.log(`[Lit Action] pkpAddress: ${pkpAddress}`);
+      console.log(`[Lit Action] swapRouterAddress: ${swapRouterAddress}`);
+
+      try {
+        const tokenInContract = new Contract(
+          tokenInAddress,
+          ["function allowance(address,address) view returns (uint256)"],
+          provider,
+        );
+        const tokenInAllowance = await tokenInContract.allowance(pkpAddress, swapRouterAddress);
+
+        return tokenInAllowance;
+      } catch (e) {
+        console.log(e);
+        throw new Error("Error getting allowance");
+      }
+    };
+
+    /**
+     * Convert a tx to a message
+     * @param { any } tx
+     * @returns { string }
+     */
+    const txToMsg = (tx: any): string => arrayify(keccak256(arrayify(serializeTransaction(tx))));
+
+    /**
+     * Get basic tx info
+     */
+    const getBasicTxInfo = async ({ walletAddress }) => {
+      try {
+        const nonce = await Lit.Actions.getTransactionCount(walletAddress);
+        const gasPrice = await Lit.Actions.getGasPrice();
+        const { chainId } = await Lit.Actions.getNetwork();
+        return { nonce, gasPrice, chainId };
+      } catch (e) {
+        console.log(e);
+        throw new Error("Error getting basic tx info");
+      }
+    };
+
+    /**
+     * Get encoded signature
+     */
+    const getEncodedSignature = sig => {
+      try {
+        const _sig = {
+          r: "0x" + sig.r,
+          s: "0x" + sig.s,
+          recoveryParam: sig.recid,
+        };
+
+        const encodedSignature = joinSignature(_sig);
+
+        return encodedSignature;
+      } catch (e) {
+        console.log(e);
+        throw new Error("Error getting encoded signature");
+      }
+    };
+
+    /**
+     * Sending tx
+     * @param param0
+     */
+    const sendTx = async ({ originalUnsignedTx, signedTxSignature }) => {
+      try {
+        const serialized = serializeTransaction(originalUnsignedTx, signedTxSignature);
+
+        return await Lit.Actions.sendTransaction(serialized);
+      } catch (e) {
+        console.log(e);
+        throw new Error("Error sending tx");
+      }
+    };
+
+    /**
+     * This will approve the swap
+     */
+    const approveSwap = async ({
+      swapRouterAddress,
+      maxAmountToApprove = ethers.constants.MaxUint256,
+      tokenInAddress,
+    }) => {
+      console.log("Approving swap...");
+
+      // getting approve data from swap router address
+      const approveData = new Interface(["function approve(address,uint256) returns (bool)"]).encodeFunctionData(
+        "approve",
+        [swapRouterAddress, maxAmountToApprove],
+      );
+
+      // get the basic tx info such as nonce, gasPrice, chainId
+      const { nonce, gasPrice, chainId } = await getBasicTxInfo({
+        walletAddress: pkpAddress,
+      });
+
+      // create the unsigned tx
+      const unsignedTx = {
+        to: tokenInAddress,
+        nonce,
+        value: 0,
+        gasPrice,
+        gasLimit: 500000,
+        chainId,
+        data: approveData,
+      };
+
+      const message = txToMsg(unsignedTx);
+
+      // sign the tx (with lit action)
+      const sigName = "approve-tx-sig";
+      const res = await LitActions.call({
+        code: Code.signEcdsa,
+        sessionSigs: sessionSigs,
+        jsParams: {
+          toSign: message,
+          publicKey: pkp.publicKey,
+          sigName,
+        },
+      });
+
+      // get encoded signature
+      const encodedSignature = getEncodedSignature(res.signatures[sigName]);
+
+      const sentTx = await sendTx({
+        originalUnsignedTx: unsignedTx,
+        signedTxSignature: encodedSignature,
+      });
+
+      await sentTx.wait();
+
+      return sentTx;
+    };
+
+    /**
+     * This will swap the token
+     */
+    const swap = async ({ swapRouterAddress, swapParams }) => {
+      console.log("[Swap] Swapping...");
+
+      // get "swap exact input single" data from contract
+      const swapData = new Interface([
+        "function exactInputSingle(tuple(address,address,uint24,address,uint256,uint256,uint160)) external payable returns (uint256)",
+      ]).encodeFunctionData("exactInputSingle", [
+        [
+          swapParams.tokenIn,
+          swapParams.tokenOut,
+          swapParams.fee,
+          swapParams.recipient,
+          swapParams.amountIn,
+          swapParams.amountOutMinimum,
+          swapParams.sqrtPriceLimitX96,
+        ],
+      ]);
+
+      console.log(`[Swap] Getting basic tx info...`);
+      // get the basic tx info such as nonce, gasPrice, chainId
+      const { nonce, gasPrice, chainId } = await getBasicTxInfo({
+        walletAddress: pkpAddress,
+      });
+
+      // get gas price in gwei
+      const _gasPrice = ethers.utils.formatUnits(gasPrice, conditions.maxGasPrice.unit);
+
+      console.log(`[Swap] Gas Price(${conditions.maxGasPrice.unit}): ${_gasPrice}`);
+
+      if (_gasPrice > conditions.maxGasPrice.value) {
+        console.log(`[Swap] Gas price is too high, aborting!`);
+
+        console.log(`[Swap] Max gas price: ${conditions.maxGasPrice.value}`);
+        console.log(`[Swap] That's ${_gasPrice - conditions.maxGasPrice.value} too high!`);
+        return;
+      } else {
+        console.log(`[Swap] Gas price is ok, proceeding...`);
+      }
+
+      // create the unsigned tx
+      const unsignedTx = {
+        to: swapRouterAddress,
+        nonce,
+        value: 0,
+        gasPrice,
+        gasLimit: 500000,
+        chainId,
+        data: swapData,
+      };
+
+      const message = txToMsg(unsignedTx);
+
+      console.log(`[Swap] Signing with Lit Action...`);
+      // sign the tx (with lit action)
+      const sigName = "swap-tx-sig";
+      const res = await LitActions.call({
+        code: Code.signEcdsa,
+        sessionSigs: sessionSigs,
+        jsParams: {
+          toSign: message,
+          publicKey: pkp.publicKey,
+          sigName,
+        },
+      });
+
+      // get encoded signature
+      const encodedSignature = getEncodedSignature(res.signatures[sigName]);
+
+      console.log(`[Swap] Sending tx...`);
+      const sentTx = await sendTx({
+        originalUnsignedTx: unsignedTx,
+        signedTxSignature: encodedSignature,
+      });
+
+      console.log(`[Swap] Waiting for tx to be mined...`);
+      await sentTx.wait();
+
+      return sentTx;
+    };
+
+    // --------------------------------------------------------------------------
+    //          This is where the actual logic being run in Lit Action
+    // --------------------------------------------------------------------------
+
+    console.log("[ExecuteSwap] Starting...");
+
+    console.log("[ExecuteSwap] Allowance: ");
+
+    // get the allowance of the contract to spend the token
+    const allowance = await getAllowance({
+      tokenInAddress: tokenIn.address,
+      pkpAddress,
+      swapRouterAddress: addresses.polygon.uniswap.v3.SwapRouter02,
+    });
+
+    console.log("[ExecuteSwap] 1. allowance:", allowance.toString());
+
+    // if it's NOT approved, then we need to approve the swap
+    if (allowance <= 0) {
+      console.log("[ExecuteSwap] 2. NOT approved! approving now...");
+      await approveSwap({
+        swapRouterAddress: addresses.polygon.uniswap.v3.SwapRouter02,
+        tokenInAddress: tokenIn.address,
+      });
+    }
+
+    console.log("[ExecuteSwap] 3. Approved! swapping now...");
+    return await swap({
+      swapRouterAddress: addresses.polygon.uniswap.v3.SwapRouter02,
+      swapParams: {
+        tokenIn: tokenIn.address,
+        tokenOut: tokenOut.address,
+        fee: 3000,
+        recipient: pkpAddress,
+        // deadline: (optional)
+        amountIn: ethers.utils.parseUnits(amountToSell, tokenIn.decimals),
+        amountOutMinimum: 0,
+        sqrtPriceLimitX96: 0,
+      },
+    });
+  };
+
+  /**
+   *
+   * @param { Array<SwapToken> } tokens
+   * @param { string } pkpAddress
+   * @param { { getUSDPriceCallback: (symbol: string) => Promise<PriceData> } } options
+   * @param { Array<{ token: string, percentage: number }> } strategy eg. [{ token: "WMATIC", percentage: 50 }, { token: "USDC", percentage: 50 }]
+   * @param { RebalanceConditions } conditions
+   * @param { string } rpcUrl
+   * @param { boolean } dryRun
+   * @returns { Promise<TX> }
+   *
+   *
+   */
+  async function runBalancePortfolio({
+    tokens,
+    pkpPublicKey,
+    strategy,
+    conditions = {
+      maxGasPrice: 80,
+      unit: "gwei",
+      minExceedPercentage: 1,
+      unless: { spikePercentage: 10, adjustGasPrice: 500 },
+    },
+    provider,
+    dryRun = false,
+  }: Array<SwapToken>): Promise<TX> {
+    // get execution time
+    const startTime = new Date().getTime();
+    // get current date and time in the format: YYYY-MM-DD HH:mm:ss in UK time
+    const now = new Date().toLocaleString("en-GB");
+    console.log(`[BalancePortfolio] => Start ${now}`);
+
+    const pkpAddress = computeAddress(pkpPublicKey);
+
+    // -- Portfolio --
+    let portfolio = [];
+    try {
+      console.log(`[BalancePortfolio] Getting portfolio...`);
+      const res = await getPortfolio(tokens, pkpAddress, provider);
+      portfolio = res.data;
+    } catch (e) {
+      const msg = `Error getting portfolio: ${e.message}`;
+      console.log(`[BalancePortfolio] ${msg}`);
+      return { status: 500, data: msg };
+    }
+
+    // log each token balance and value in the format of
+    // { symbol: "WMATIC", balance: 0.000000000000000001, value: 0.000000000000000001}
+    portfolio.forEach((currentBalance: { token: { symbol: any }; balance: any; value: any }) => {
+      console.log(
+        `[BalancePortfolio] currentBalance: { symbol: "${currentBalance.token.symbol}", balance: ${currentBalance.balance}, value: ${currentBalance.value} }`,
+      );
+    });
+
+    console.log(`[BalancePortfolio] Total value: ${portfolio.reduce((a, b) => a + b.value, 0)}`);
+
+    // -- Strategy Execution Plan --
+    let plan;
+
+    console.log(`[BalancePortfolio] Getting strategy execution plan...`);
+    console.log("[BalancePortfolio] Strategy:", strategy);
+    console.log("[BalancePortfolio] Portfolio: ", portfolio);
+
+    try {
+      const res = await getStrategyExecutionPlan(portfolio, strategy);
+      console.log("response:", res);
+      plan = res?.data;
+      console.log(plan);
+    } catch (e) {
+      console.log(`[BalancePortfolio] Error getting strategy execution plan: ${e.message}`);
+      return { status: 500, data: "Error getting strategy execution plan" };
+    }
+    console.log(`[BalancePortfolio] PKP Address: ${pkpAddress}`);
+    console.log(
+      `[BalancePortfolio] Proposed to swap ${plan.tokenToSell.symbol} for ${plan.tokenToBuy.symbol}. Percentage difference is ${plan.valueDiff.percentage}%.`,
+    );
+
+    // -- Guard Conditions --
+    let atLeastPercentageDiff = conditions.minExceedPercentage; // eg. 1 = 1%
+
+    // If the percentage difference is less than 5%, then don't execute the swap
+    if (plan.valueDiff.percentage < atLeastPercentageDiff) {
+      const msg = `No need to execute swap, percentage is only ${plan.valueDiff.percentage}% which is less than ${atLeastPercentageDiff}% required.`;
+      console.log(`[BalancePortfolio] ${msg}`);
+      return { status: 412, data: msg };
+    }
+
+    // this usually happens when the price of the token has spiked in the last moments
+    const spikePercentageDiff = conditions.unless.spikePercentage; // eg. 15 => 15%
+
+    // Unless the percentage difference is greater than 15%, then set the max gas price to 1000 gwei
+    // otherwise, set the max gas price to 100 gwei
+    const _maxGasPrice =
+      plan.valueDiff.percentage > spikePercentageDiff
+        ? {
+            value: conditions.unless.adjustGasPrice,
+            unit: conditions.unit,
+          }
+        : {
+            value: conditions.maxGasPrice,
+            unit: conditions.unit,
+          };
+    console.log("[BalancePortfolio] maxGasPrice:", _maxGasPrice);
+
+    if (dryRun) {
+      return { status: 200, data: "dry run, skipping swap..." };
+    }
+
+    // -- Execute Swap --
+    let tx;
+    try {
+      tx = await executeSwap({
+        jsParams: {
+          sessionSigs: sessionSigs,
+          provider: provider,
+          tokenIn: plan.tokenToSell,
+          tokenOut: plan.tokenToBuy,
+          pkp: {
+            publicKey: pkpPublicKey,
+          },
+          amountToSell: plan.amountToSell.toString(),
+          conditions: {
+            maxGasPrice: _maxGasPrice,
+          },
+        },
+      });
+    } catch (e) {
+      const msg = `Error executing swap: ${e.message}`;
+      console.log(`[BalancePortfolio] ${msg}`);
+      return { status: 500, data: msg };
+    }
+
+    // get execution time
+    const endTime = new Date().getTime();
+    const executionTime = (endTime - startTime) / 1000;
+
+    console.log(`[BalancePortfolio] => End ${executionTime} seconds`);
+
+    return {
+      status: 200,
+      data: {
+        tx,
+        executionTime,
+      },
+    };
+  }
+
+  // async function getStrategyExecutionPlanMock(tokens, strategy) {
+  //   // if the strategy percentage is not 100, throw an error
+  //   if (strategy.reduce((sum, s) => sum + s.percentage, 0) !== 100) {
+  //     // show which token can be adjusted with another percentage to make the total 100
+  //     let tokenToAdjust = strategy.find(s => s.percentage !== 0);
+  //     let adjustedPercentage = 100 - strategy.reduce((sum, s) => sum + s.percentage, 0);
+
+  //     let total = tokenToAdjust.percentage + adjustedPercentage;
+
+  //     throw new Error(
+  //       `Strategy percentages must add up to 100 - The total strategy percentage for all assets must equal 100, with a suggested allocation of ${total}% for ${tokenToAdjust.token} to reach this total.`,
+  //     );
+  //   }
+
+  //   // this will both set the response to the client and return the data internally
+  //   const respond = data => {
+  //     Lit.Actions.setResponse({
+  //       response: JSON.stringify(data),
+  //     });
+
+  //     return data;
+  //   };
+  //   // Calculate the total value of the portfolio
+  //   let totalValue = tokens.reduce((sum, token) => sum + token.value, 0);
+  //   console.log("totalValue:", totalValue);
+  //   // Calculate the target percentage for each token based on the strategy
+  //   let targetPercentages = strategy.map(s => s.percentage / 100);
+  //   console.log("targetPercentages:", targetPercentages);
+
+  //   // Calculate the target value for each token
+  //   let targetValues = targetPercentages.map(p => totalValue * p);
+  //   console.log("targetValues:", targetValues);
+
+  //   // Create a mapping between the token symbol and its index in the tokens array
+  //   let tokenIndexMap = tokens.reduce((map, token, index) => {
+  //     map[token.token.symbol] = index;
+  //     return map;
+  //   }, {});
+  //   console.log("tokenIndexMap:", tokenIndexMap);
+
+  //   // Calculate the difference between the target value and the current value for each token
+  //   let diffValues = strategy.map((s, index) => {
+  //     let tokenIndex = tokenIndexMap[s.token];
+  //     return targetValues[index] - tokens[tokenIndex].value;
+  //   });
+  //   console.log("diffValues:", diffValues);
+
+  //   // Determine which token to buy by finding the token with the largest negative difference
+  //   let tokenToBuyIndex = diffValues.reduce(
+  //     (maxIndex, diff, index) => (diff > diffValues[maxIndex] ? index : maxIndex),
+  //     0,
+  //   );
+  //   console.log("tokenToBuyIndex:", tokenToBuyIndex);
+
+  //   // Calculate the amount of the token to sell
+  //   let percentageToSell = diffValues[tokenToBuyIndex] / tokens[tokenToBuyIndex].value;
+  //   console.log("percentageToSell:", percentageToSell);
+
+  //   // get the actual amount of token to sell
+  //   let amountToSell = tokens[tokenToBuyIndex].balance * percentageToSell;
+  //   console.log("amountToSell:", amountToSell);
+
+  //   // Determine which token to sell by finding the token with the largest positive difference
+  //   let tokenToSellIndex = diffValues.reduce(
+  //     (minIndex, diff, index) => (diff < diffValues[minIndex] ? index : minIndex),
+  //     0,
+  //   );
+  //   console.log("tokenToSellIndex:", tokenToSellIndex);
+
+  //   const toSellSymbol = strategy[tokenToSellIndex].token;
+  //   const toBuySymbol = strategy[tokenToBuyIndex].token;
+
+  //   // find to sell token param tokens
+  //   const toSellToken = tokens.find(token => token.token.symbol === toSellSymbol).token;
+
+  //   //  find to buy token
+  //   const toBuyToken = tokens.find(token => token.token.symbol === toBuySymbol).token;
+
+  //   // calculate the percentage difference between the strategy and the current portfolio, and show which token is it
+  //   const proposedAllocation = diffValues.map((diff, index) => {
+  //     const percentageDiff = (diff / totalValue) * 100;
+  //     const token = strategy[index].token;
+  //     return { token, percentageDiff };
+  //   });
+
+  //   // sell allocation
+  //   const sellPercentageDiff = proposedAllocation.find(token => {
+  //     return token.token === toSellToken.symbol;
+  //   });
+
+  //   // Return the token to sell and the amount to sell
+  //   return respond({
+  //     status: 200,
+  //     data: {
+  //       tokenToSell: toSellToken,
+  //       percentageToSell: Math.abs(percentageToSell),
+  //       amountToSell: amountToSell.toFixed(6).toString(),
+  //       tokenToBuy: toBuyToken,
+  //       proposedAllocation,
+  //       valueDiff: {
+  //         token: sellPercentageDiff.token,
+  //         percentage: Math.abs(sellPercentageDiff.percentageDiff).toFixed(2),
+  //       },
+  //     },
+  //   });
+  // }
+
+  // (async () => {
+  //   // --------------------------------------
+  //   //          JS Params Handling
+  //   // --------------------------------------
+  //   const jsParams = {};
+
+  //   try {
+  //     jsParams.portfolio = portfolio;
+  //   } catch (e) {
+  //     console.error("[ERROR] portfolio is required");
+  //     return;
+  //   }
+
+  //   try {
+  //     jsParams.strategy = strategy;
+  //   } catch (e) {
+  //     console.error("[ERROR] strategy is required");
+  //     return;
+  //   }
+
+  //   // -----------------------
+  //   //          GO!
+  //   // -----------------------
+  //   const res = await getStrategyExecutionPlan(portfolio, strategy);
+
+  //   console.log("res:", res);
+  // })();
 
   return (
     <>
@@ -1342,46 +1952,39 @@ const Home: NextPage = () => {
                     className="btn btn-circle   text-2xl mx-10 "
                     onClick={async () => {
                       fetchTokenInWallet();
-
-                      // select MATIC and WMATIC and create new array from tokenInWallet
-                      const tokenInWalletFilter = tokenInWallet?.filter(
-                        token => token.symbol === "UNI" || token.symbol === "MATIC",
-                      );
-
-                      console.log(tokenInWalletFilter);
-
-                      let portfolio = [];
-
-                      try {
-                        const res = await getPortfolio(tokenInWalletFilter, currentPKP?.ethAddress, provider);
-                        portfolio = res.data;
-                        console.log("Portfolio", portfolio);
-                      } catch (e) {
-                        const msg = `Error getting portfolio: ${e.message}`;
-                        console.log(`[BalancePortfolio] ${msg}`);
-                        return { status: 500, data: msg };
-                      }
-
-                      //await getStrategyExecutionPlanMock(portfolio, JSON.stringify(fakeData.strategy));
-
-                      // await getStrategyExecutionPlan(
-                      //   litNodeClient,
-                      //   stubAuthSig,
-                      //   portfolio.data,
-                      //   JSON.stringify(fakeData.strategy),
-                      // );
-
-                      /* await runBalancePortfolio({
-                        client: litNodeClient,
-                        authSig: _authSig,
-                        tokens: tokenInWallet,
-                        pkpPublicKey: currentPKP?.publicKey,
-                        strategy: JSON.stringify(fakeData.strategy),
-                        provider,
-                      }); */
                     }}
                   >
                     <ArrowPathIcon className="hover:animate-spin" height={30} width={30} />
+                  </div>
+                  <div
+                    className="btn btn-circle   text-2xl mx-10 "
+                    onClick={async () => {
+                      const tokenInWalletFilter = tokenInWallet?.filter(
+                        token =>
+                          token.symbol === fakeData.strategy[0].token || token.symbol === fakeData.strategy[1].token,
+                      );
+
+                      //const portfolio = await getPortfolio(tokenInWalletFilter, currentPKP?.ethAddress, provider);
+                      //await getStrategyExecutionPlanMock(portfolio.data, fakeData.strategy);
+                      let counter = 0;
+                      while (true) {
+                        counter++;
+
+                        console.log(`counter:`, counter);
+                        await runBalancePortfolio({
+                          tokens: tokenInWalletFilter,
+                          pkpPublicKey: currentPKP?.publicKey,
+                          strategy: fakeData.strategy,
+                          provider,
+                        });
+
+                        console.log("[Task] res:", res);
+                        console.log("[Task] waiting for 5 minutes before continuing...");
+                        await new Promise(resolve => setTimeout(resolve, 5 * 60 * 1000));
+                      }
+                    }}
+                  >
+                    <ArrowPathIcon className="hover:animate-spin" height={50} width={50} />
                   </div>
                 </div>
               </div>
@@ -1709,3 +2312,6 @@ const Home: NextPage = () => {
 };
 
 export default Home;
+function safeFetch(arg0: string, arg1: any, arg2: (e: Error) => void) {
+  throw new Error("Function not implemented.");
+}

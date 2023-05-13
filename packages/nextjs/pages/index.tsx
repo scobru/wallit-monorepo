@@ -2,15 +2,12 @@ import { useCallback, useEffect, useState } from "react";
 import Head from "next/head";
 import Image from "next/image";
 import { useRouter } from "next/router";
-import {
-  getStrategyExecutionPlan,
-  getStrategyExecutionPlanMock,
-  runBalancePortfolio,
-} from "../actions/portfolio-rebalance";
 import { useScaffoldContractRead, useTransactor } from "../hooks/scaffold-eth";
 import { useScaffoldContractWrite } from "../hooks/scaffold-eth";
 import UniswapIcon from "../uniswap.png";
 import { addresses } from "../utils/constant";
+import { getStrategyExecutionPlanAction } from "./actions/get-strategy-execution-plan";
+import { getTokenPriceAction } from "./actions/get-token-price";
 import { ProviderType } from "@lit-protocol/constants";
 import {
   DiscordProvider,
@@ -23,10 +20,8 @@ import {
 } from "@lit-protocol/lit-auth-client";
 import { LitNodeClient } from "@lit-protocol/lit-node-client";
 import { AuthMethod, AuthSig, IRelayPKP, SessionSigs } from "@lit-protocol/types";
-import "@uniswap/widgets/fonts.css";
 import { multicall } from "@wagmi/core";
 import { P } from "@wagmi/core/dist/index-35b6525c";
-import { getUsdPriceAction } from "actions/get-usd-price.action";
 import { Contract, ethers } from "ethers";
 import {
   Interface,
@@ -138,7 +133,7 @@ const Home: NextPage = () => {
   const [tokenList, setTokenList] = useState<string[]>([]);
   const [tokenInWallet, setTokenInWallet] = useState<string[]>([]);
 
-  const zapperUrl = "https://zapper.xyz/account/" + currentPKP?.ethAddress;
+  const zapperUrl = "https://zapper.xyz/account/" + currentPKP?.ethAddress || undefined;
   const qrCodeUrl = "ethereum:" + currentPKP?.ethAddress + "/pay?chain_id=137value=0";
 
   const executeSetWallitNamePrepared = usePrepareContractWrite({
@@ -150,7 +145,7 @@ const Home: NextPage = () => {
 
   const executeSetWallitName = useContractWrite(executeSetWallitNamePrepared.config);
 
-  const stubPkpInfo = {
+  /* const stubPkpInfo = {
     publicKey:
       "0x04e0fe6a5e9447112a272b3bfea3cbcb48a730c731d9edd434417d30f5b25966cb8543cece8ba67fd6bbbb9ba952e28db541de9a898cca0257e5479033c3b7b021",
   };
@@ -161,7 +156,7 @@ const Home: NextPage = () => {
     signedMessage:
       "localhost wants you to sign in with your Ethereum account:\n0x9D1a5EC58232A894eBFcB5e466E3075b23101B89\n\nThis is a key for Partiful\n\nURI: https://localhost/login\nVersion: 1\nChain ID: 1\nNonce: 1LF00rraLO4f7ZSIt\nIssued At: 2022-06-03T05:59:09.959Z",
     address: "0x9D1a5EC58232A894eBFcB5e466E3075b23101B89",
-  };
+  }; */
 
   const fakeData = {
     pkpPublicKey: currentPKP?.publicKey,
@@ -183,7 +178,6 @@ const Home: NextPage = () => {
   };
 
   // if metamask is disconnected change view with setView
-
   // Use wagmi to connect one's eth wallet
   /* const { connectAsync } = useConnect({
     onError(error) {
@@ -208,9 +202,7 @@ const Home: NextPage = () => {
   async function fetchTokenInWallet() {
     if (tokenList.length > 0) {
       const id = notification.loading("Fetching Token In Wallet, Please Wait...");
-
       const _tokens = [];
-
       const _contractList = [];
 
       for (let i = 0; i < tokenList.length; i++) {
@@ -1045,41 +1037,19 @@ const Home: NextPage = () => {
   async function getUSDPrice(symbol: any) {
     console.log(`[Lit Action] Running Lit Action to get ${symbol}/USD price...`);
 
-    const res = await litNodeClient!.executeJs({
+    const res = await litNodeClient?.executeJs({
       targetNodeRange: 10,
       authSig: authSig as AuthSig,
-      code: getUsdPriceAction,
+      code: getTokenPriceAction,
       jsParams: {
         tokenSymbol: symbol,
       },
     });
-    return res.response;
+
+    console.log(`[Lit Action] Lit Action response:`, res);
+
+    return res;
   }
-
-
-  async function getUSDPriceDirect(symbol: any) {
-    const API = "https://min-api.cryptocompare.com/data/price?fsym=" + symbol + "&tsyms=USD";
-    console.log("API", API)
-      let res;
-      let data;
-      let response;
-
-      try {
-        res = await fetch(API);
-        data = await res.json();
-      } catch (e) {
-        console.log(e);
-      }
-
-      if (!res) {
-        return { status: 500, data: null };
-    }
-
-    return { status: 200, data: data.USD };
-
-    };
-
-  
 
   /**
    *
@@ -1096,10 +1066,10 @@ const Home: NextPage = () => {
   async function getPortfolio(tokens: any[], pkpAddress: any, provider: any) {
     console.log(`[Lit Action] [FAKE] Running Lit Action to get portfolio...`);
 
-    const tokenSymbolMapper = {
+    /* const tokenSymbolMapper = {
       MATIC: "MATIC",
       UNI: "UNI",
-    };
+    }; */
 
     // Using Promise.all, we retrieve the balance and value of each token in the `tokens` array.
     const balances = await Promise.all(
@@ -1116,15 +1086,13 @@ const Home: NextPage = () => {
         balance = parseFloat(ethers.utils.formatUnits(balance, decimals));
 
         // Get the token symbol using the `tokenSymbolMapper` or the original symbol if not found.
-        const priceSymbol = token.symbol;
         //const priceSymbol = tokenSymbolMapper[token.symbol] ?? token.symbol;
 
-        // Get the token value in USD using the `getUSDPrice` function.
-        //const priceResult = await getUSDPrice(priceSymbol);
-        const priceResult = await getUSDPriceDirect(priceSymbol);
-        console.log("priceResult",  priceResult)
+        const priceSymbol = token.symbol;
 
-        const value = (await priceResult.data.USD) * balance;
+        // Get the token value in USD using the `getUSDPrice` function.
+        const priceResult = await getUSDPrice(priceSymbol);
+        const value = (await priceResult?.response.data.USD) * balance;
 
         console.log(token, balance, value);
 
@@ -1138,6 +1106,42 @@ const Home: NextPage = () => {
     );
 
     return { status: 200, data: balances };
+  }
+
+  /**
+   * This function is used to balance a token portfolio based on a given strategy.
+   * It takes in the `portfolio` array and the `strategy` array as arguments and returns an object
+   * with the `tokenToSell`, `percentageToSell`, `amountToSell`, and `tokenToBuy` properties.
+   * @param { Array<CurrentBalance> } portfolio
+   * @param { Array<{ token: string, percentage: number }> } strategy
+   *
+   * @returns { StrategyExecutionPlan }
+   */
+  async function getStrategyExecutionPlan(
+    litNodeClient: any,
+    serverAuthSig: any,
+    portfolio: { token: any; balance: any; value: number }[],
+    strategy: any,
+  ) {
+    console.log(`[Lit Action] Running Lit Action to get strategy execution plan...`);
+    const code = getStrategyExecutionPlanAction;
+
+    console.log("Portfolio: ", portfolio);
+    console.log("Strategy: ", strategy);
+
+    const res = await litNodeClient.executeJs({
+      targetNodeRange: 1,
+      authSig: serverAuthSig,
+      code: code,
+      jsParams: {
+        portfolio,
+        strategy,
+      },
+    });
+
+    console.log("Lit Action Response: ", res);
+
+    return res.response;
   }
 
   return (
@@ -1344,13 +1348,14 @@ const Home: NextPage = () => {
                         token => token.symbol === "UNI" || token.symbol === "MATIC",
                       );
 
-                      console.log(tokenInWalletFilter)
+                      console.log(tokenInWalletFilter);
 
                       let portfolio = [];
 
                       try {
                         const res = await getPortfolio(tokenInWalletFilter, currentPKP?.ethAddress, provider);
                         portfolio = res.data;
+                        console.log("Portfolio", portfolio);
                       } catch (e) {
                         const msg = `Error getting portfolio: ${e.message}`;
                         console.log(`[BalancePortfolio] ${msg}`);

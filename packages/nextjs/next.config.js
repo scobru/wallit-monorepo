@@ -9,6 +9,11 @@ const nextConfig = {
   eslint: {
     ignoreDuringBuilds: process.env.NEXT_PUBLIC_IGNORE_BUILD_ERROR === "true",
   },
+  webpack: config => {
+    config.resolve.fallback = { fs: false };
+
+    return config;
+  },
 };
 
 module.exports = nextConfig;

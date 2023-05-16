@@ -457,6 +457,7 @@ const WalletConnectInput = ({
           disabled={isConnected}
           value={walletConnectUri}
           onChange={e => setWalletConnectUri(e.target.value)}
+          color="black"
         />
         <Button
           disabled={isConnected}

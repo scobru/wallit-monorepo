@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 import { useCallback, useEffect, useState } from "react";
 import Head from "next/head";
 import Image from "next/image";
@@ -1043,17 +1044,17 @@ const Home: NextPage = () => {
     fetchTokenInWallet();
   }, []);
 
-  // useEffect(() => {
-  //   if (!address) {
-  //     setView(Views.SIGN_IN);
-  //   }
-  // }, [address]);
+  useEffect(() => {
+    if (!address) {
+      setView(Views.SIGN_IN);
+    }
+  }, [address]);
 
-  // useEffect(() => {
-  //   if (address) {
-  //     setView(Views.SIGN_IN);
-  //   }
-  // }, [address]);
+  useEffect(() => {
+    if (address) {
+      setView(Views.SIGN_IN);
+    }
+  }, [address]);
 
   useEffect(() => {
     if (wallitCtx && yourWallit != ethers.constants.AddressZero && signer && currentPKP?.ethAddress) {
@@ -1126,467 +1127,6 @@ const Home: NextPage = () => {
     return null;
   }
 
-  /**************** REBALANCE FEATURE **********************/
-
-  async function getUSDPrice(symbol: any) {
-    console.log(`[Get USD Price] Running Lit Action to get ${symbol}/USD price...`);
-    const res = await litNodeClient?.executeJs({
-      sessionSigs: sessionSigs,
-      code: getTokenPriceAction,
-      jsParams: {
-        tokenSymbol: symbol,
-      },
-      authSig: undefined as unknown as AuthSig,
-    });
-
-    console.log(`[Get USD Price] Lit Action response:`, res);
-
-    return res;
-  }
-
-  async function getPortfolio(tokens: any[], pkpAddress: any, provider: any): CurrentBalance {
-    console.log(`[Lit Action] [FAKE] Running Lit Action to get portfolio...`);
-
-    const tokenSymbolMapper = {
-      WMATIC: "MATIC",
-      UNI: "UNI",
-    };
-
-    // Using Promise.all, we retrieve the balance and value of each token in the `tokens` array.
-    const balances = await Promise.all(
-      tokens.map(async token => {
-        const ERC20 = new ethers.Contract(token.address, erc20ABI, provider);
-
-        // Get the token balance using the `ERC20.getBalance` method.
-        let balance = await ERC20.balanceOf(pkpAddress);
-
-        // Get the number of decimal places of the token using the `ERC20.getDecimals` method.
-        const decimals = token.decimals;
-
-        // Format the token balance to have the correct number of decimal places.
-        balance = parseFloat(ethers.utils.formatUnits(balance, decimals));
-
-        // Get the token symbol using the `tokenSymbolMapper` or the original symbol if not found.
-        const priceSymbol = tokenSymbolMapper[token.symbol] ?? token.symbol;
-        //const priceSymbol = token.symbol;
-
-        // Get the token value in USD using the `getUSDPrice` function.
-        const priceResult = await getUSDPrice(priceSymbol);
-        const value = (await priceResult?.response.data.USD) * balance;
-
-        console.log(token, balance, value);
-
-        // Return an CurrentBalance object containing the token symbol, balance and value.
-        return {
-          token,
-          balance,
-          value,
-        };
-      }),
-    );
-
-    return { status: 200, data: balances };
-  }
-
-  async function getStrategyExecutionPlan(portfolio: any, strategy: any): Promise<Response> {
-    console.log(`[Lit Action] Running Lit Action to get strategy execution plan...`);
-    console.log(`[Strategy Ececution Plan] Running Lit Action to get strategy execution plan...`);
-    const privateKey = process.env.NEXT_PUBLIC_SERVER_PRIVATE_KEY;
-    const serverAuthSig = await getWalletAuthSig({
-      privateKey: privateKey as string,
-      chainId: 137,
-    });
-
-    const code = getStrategyExecutionPlanAction;
-    console.log(`[Strategy Ececution Plan] ServerAuthSig:`, serverAuthSig);
-
-    const res = await LitActions.call({
-      targetNodeRange: 1,
-      authSig: serverAuthSig,
-      code: code,
-      jsParams: {
-        portfolio,
-        strategy,
-      },
-    });
-
-    console.log(`[Strategy Ececution Plan] Lit Action response:`, res);
-    return res.response;
-  }
-
-  const executeSwap = async ({ jsParams }) => {
-    console.log("JS Params: ", jsParams);
-    console.log("[Execute Swap] Running Lit Action to execute swap...");
-
-    const { tokenIn, tokenOut, pkp, authSig, amountToSell, provider, conditions } = jsParams;
-
-    if (!pkp.publicKey.startsWith("0x")) {
-      pkp.publicKey = "0x" + pkp.publicKey;
-    }
-
-    const pkpAddress = computeAddress(pkp.publicKey);
-
-    const Lit = {
-      Actions: {
-        getGasPrice: () => provider.getGasPrice(),
-        getTransactionCount: (walletAddress: any) => provider.getTransactionCount(walletAddress),
-        getNetwork: () => provider.getNetwork(),
-        sendTransaction: (tx: any) => provider.sendTransaction(tx),
-      },
-    };
-
-    class Code {
-      static signEcdsa = `(async() => {
-      const sigShare = await LitActions.signEcdsa({ toSign, publicKey, sigName });
-    })();`;
-    }
-
-    const getAllowance = async ({ tokenInAddress, pkpAddress, swapRouterAddress }: string): BigNumber => {
-      console.log(`[Lit Action] Running Lit Action to get allowance...`);
-      console.log(`[Lit Action] tokenInAddress: ${tokenInAddress}`);
-      console.log(`[Lit Action] pkpAddress: ${pkpAddress}`);
-      console.log(`[Lit Action] swapRouterAddress: ${swapRouterAddress}`);
-
-      try {
-        const tokenInContract = new Contract(
-          tokenInAddress,
-          ["function allowance(address,address) view returns (uint256)"],
-          provider,
-        );
-        const tokenInAllowance = await tokenInContract.allowance(pkpAddress, swapRouterAddress);
-
-        return tokenInAllowance;
-      } catch (e) {
-        console.log(e);
-        throw new Error("Error getting allowance");
-      }
-    };
-
-    const txToMsg = (tx: any): string => arrayify(keccak256(arrayify(serializeTransaction(tx))));
-
-    const getBasicTxInfo = async ({ walletAddress }) => {
-      try {
-        const nonce = await Lit.Actions.getTransactionCount(walletAddress);
-        const gasPrice = await Lit.Actions.getGasPrice();
-        const { chainId } = await Lit.Actions.getNetwork();
-        return { nonce, gasPrice, chainId };
-      } catch (e) {
-        console.log(e);
-        throw new Error("Error getting basic tx info");
-      }
-    };
-
-    const getEncodedSignature = sig => {
-      try {
-        const _sig = {
-          r: "0x" + sig.r,
-          s: "0x" + sig.s,
-          recoveryParam: sig.recid,
-        };
-
-        const encodedSignature = joinSignature(_sig);
-
-        return encodedSignature;
-      } catch (e) {
-        console.log(e);
-        throw new Error("Error getting encoded signature");
-      }
-    };
-
-    const sendTx = async ({ originalUnsignedTx, signedTxSignature }) => {
-      try {
-        const serialized = serializeTransaction(originalUnsignedTx, signedTxSignature);
-
-        return await Lit.Actions.sendTransaction(serialized);
-      } catch (e) {
-        console.log(e);
-        throw new Error("Error sending tx");
-      }
-    };
-
-    const approveSwap = async ({
-      swapRouterAddress,
-      maxAmountToApprove = ethers.constants.MaxUint256,
-      tokenInAddress,
-    }) => {
-      console.log("Approving swap...");
-
-      const approveData = new Interface(["function approve(address,uint256) returns (bool)"]).encodeFunctionData(
-        "approve",
-        [swapRouterAddress, maxAmountToApprove],
-      );
-
-      const { nonce, gasPrice, chainId } = await getBasicTxInfo({
-        walletAddress: pkpAddress,
-      });
-
-      const unsignedTx = {
-        to: tokenInAddress,
-        nonce,
-        value: 0,
-        gasPrice,
-        gasLimit: 500000,
-        chainId,
-        data: approveData,
-      };
-
-      const message = txToMsg(unsignedTx);
-
-      const sigName = "approve-tx-sig";
-      const res = await LitActions.call({
-        code: Code.signEcdsa,
-        sessionSigs: sessionSigs,
-        jsParams: {
-          toSign: message,
-          publicKey: pkp.publicKey,
-          sigName,
-        },
-      });
-
-      const encodedSignature = getEncodedSignature(res.signatures[sigName]);
-
-      const sentTx = await sendTx({
-        originalUnsignedTx: unsignedTx,
-        signedTxSignature: encodedSignature,
-      });
-
-      await sentTx.wait();
-
-      return sentTx;
-    };
-
-    const swap = async ({ swapRouterAddress, swapParams }) => {
-      console.log("[Swap] Swapping...");
-
-      const swapData = new Interface([
-        "function exactInputSingle(tuple(address,address,uint24,address,uint256,uint256,uint160)) external payable returns (uint256)",
-      ]).encodeFunctionData("exactInputSingle", [
-        [
-          swapParams.tokenIn,
-          swapParams.tokenOut,
-          swapParams.fee,
-          swapParams.recipient,
-          swapParams.amountIn,
-          swapParams.amountOutMinimum,
-          swapParams.sqrtPriceLimitX96,
-        ],
-      ]);
-
-      console.log(`[Swap] Getting basic tx info...`);
-      // get the basic tx info such as nonce, gasPrice, chainId
-      const { nonce, gasPrice, chainId } = await getBasicTxInfo({
-        walletAddress: pkpAddress,
-      });
-
-      const _gasPrice = ethers.utils.formatUnits(gasPrice, conditions.maxGasPrice.unit);
-
-      console.log(`[Swap] Gas Price(${conditions.maxGasPrice.unit}): ${_gasPrice}`);
-
-      if (_gasPrice > conditions.maxGasPrice.value) {
-        console.log(`[Swap] Gas price is too high, aborting!`);
-
-        console.log(`[Swap] Max gas price: ${conditions.maxGasPrice.value}`);
-        console.log(`[Swap] That's ${_gasPrice - conditions.maxGasPrice.value} too high!`);
-        return;
-      } else {
-        console.log(`[Swap] Gas price is ok, proceeding...`);
-      }
-
-      const unsignedTx = {
-        to: swapRouterAddress,
-        nonce,
-        value: 0,
-        gasPrice,
-        gasLimit: 500000,
-        chainId,
-        data: swapData,
-      };
-
-      const message = txToMsg(unsignedTx);
-
-      console.log(`[Swap] Signing with Lit Action...`);
-      const sigName = "swap-tx-sig";
-      const res = await LitActions.call({
-        code: Code.signEcdsa,
-        sessionSigs: sessionSigs,
-        jsParams: {
-          toSign: message,
-          publicKey: pkp.publicKey,
-          sigName,
-        },
-      });
-
-      const encodedSignature = getEncodedSignature(res.signatures[sigName]);
-
-      console.log(`[Swap] Sending tx...`);
-      const sentTx = await sendTx({
-        originalUnsignedTx: unsignedTx,
-        signedTxSignature: encodedSignature,
-      });
-
-      console.log(`[Swap] Waiting for tx to be mined...`);
-      await sentTx.wait();
-
-      return sentTx;
-    };
-
-    console.log("[ExecuteSwap] Starting...");
-    console.log("[ExecuteSwap] Allowance: ");
-
-    const allowance = await getAllowance({
-      tokenInAddress: tokenIn.address,
-      pkpAddress,
-      swapRouterAddress: addresses.polygon.uniswap.v3.SwapRouter02,
-    });
-
-    console.log("[ExecuteSwap] 1. allowance:", allowance.toString());
-
-    if (allowance <= 0) {
-      console.log("[ExecuteSwap] 2. NOT approved! approving now...");
-      await approveSwap({
-        swapRouterAddress: addresses.polygon.uniswap.v3.SwapRouter02,
-        tokenInAddress: tokenIn.address,
-      });
-    }
-
-    console.log("[ExecuteSwap] 3. Approved! swapping now...");
-    return await swap({
-      swapRouterAddress: addresses.polygon.uniswap.v3.SwapRouter02,
-      swapParams: {
-        tokenIn: tokenIn.address,
-        tokenOut: tokenOut.address,
-        fee: 500,
-        recipient: pkpAddress,
-        // deadline: (optional)
-        amountIn: ethers.utils.parseUnits(amountToSell, tokenIn.decimals),
-        amountOutMinimum: 0,
-        sqrtPriceLimitX96: 0,
-      },
-    });
-  };
-
-  async function runBalancePortfolio({
-    tokens,
-    pkpPublicKey,
-    strategy,
-    conditions = {
-      maxGasPrice: 80,
-      unit: "gwei",
-      minExceedPercentage: 1,
-      unless: { spikePercentage: 10, adjustGasPrice: 500 },
-    },
-    provider,
-    dryRun = false,
-  }: Array<SwapToken>): Promise<TX> {
-    const startTime = new Date().getTime();
-    const now = new Date().toLocaleString("en-GB");
-    console.log(`[BalancePortfolio] => Start ${now}`);
-
-    const pkpAddress = computeAddress(pkpPublicKey);
-
-    let portfolio = [];
-
-    try {
-      console.log(`[BalancePortfolio] Getting portfolio...`);
-      const res = await getPortfolio(tokens, pkpAddress, provider);
-      portfolio = res.data;
-    } catch (e) {
-      const msg = `Error getting portfolio: ${e.message}`;
-      console.log(`[BalancePortfolio] ${msg}`);
-      return { status: 500, data: msg };
-    }
-
-    portfolio.forEach((currentBalance: { token: { symbol: any }; balance: any; value: any }) => {
-      console.log(
-        `[BalancePortfolio] currentBalance: { symbol: "${currentBalance.token.symbol}", balance: ${currentBalance.balance}, value: ${currentBalance.value} }`,
-      );
-    });
-
-    console.log(`[BalancePortfolio] Total value: ${portfolio.reduce((a, b) => a + b.value, 0)}`);
-
-    let plan;
-
-    console.log(`[BalancePortfolio] Getting strategy execution plan...`);
-    console.log("[BalancePortfolio] Strategy:", strategy);
-    console.log("[BalancePortfolio] Portfolio: ", portfolio);
-
-    try {
-      const res = await getStrategyExecutionPlan(portfolio, strategy);
-      console.log("response:", res);
-      plan = res?.data;
-      console.log(plan);
-    } catch (e) {
-      console.log(`[BalancePortfolio] Error getting strategy execution plan: ${e.message}`);
-      return { status: 500, data: "Error getting strategy execution plan" };
-    }
-    console.log(`[BalancePortfolio] PKP Address: ${pkpAddress}`);
-    console.log(
-      `[BalancePortfolio] Proposed to swap ${plan.tokenToSell.symbol} for ${plan.tokenToBuy.symbol}. Percentage difference is ${plan.valueDiff.percentage}%.`,
-    );
-
-    let atLeastPercentageDiff = conditions.minExceedPercentage; // eg. 1 = 1%
-
-    if (plan.valueDiff.percentage < atLeastPercentageDiff) {
-      const msg = `No need to execute swap, percentage is only ${plan.valueDiff.percentage}% which is less than ${atLeastPercentageDiff}% required.`;
-      console.log(`[BalancePortfolio] ${msg}`);
-      return { status: 412, data: msg };
-    }
-
-    const spikePercentageDiff = conditions.unless.spikePercentage; // eg. 15 => 15%
-
-    const _maxGasPrice =
-      plan.valueDiff.percentage > spikePercentageDiff
-        ? {
-            value: conditions.unless.adjustGasPrice,
-            unit: conditions.unit,
-          }
-        : {
-            value: conditions.maxGasPrice,
-            unit: conditions.unit,
-          };
-    console.log("[BalancePortfolio] maxGasPrice:", _maxGasPrice);
-
-    if (dryRun) {
-      return { status: 200, data: "dry run, skipping swap..." };
-    }
-
-    let tx;
-
-    try {
-      tx = await executeSwap({
-        jsParams: {
-          sessionSigs: sessionSigs,
-          provider: provider,
-          tokenIn: plan.tokenToSell,
-          tokenOut: plan.tokenToBuy,
-          pkp: {
-            publicKey: pkpPublicKey,
-          },
-          amountToSell: plan.amountToSell.toString(),
-          conditions: {
-            maxGasPrice: _maxGasPrice,
-          },
-        },
-      });
-    } catch (e) {
-      const msg = `Error executing swap: ${e.message}`;
-      console.log(`[BalancePortfolio] ${msg}`);
-      return { status: 500, data: msg };
-    }
-
-    const endTime = new Date().getTime();
-    const executionTime = (endTime - startTime) / 1000;
-    console.log(`[BalancePortfolio] => End ${executionTime} seconds`);
-
-    return {
-      status: 200,
-      data: {
-        tx,
-        executionTime,
-      },
-    };
-  }
-
   return (
     <>
       <Head>
@@ -1632,6 +1172,7 @@ const Home: NextPage = () => {
             <>
               {isConnected ? (
                 <>
+                  <div className="text-6xl font-bold mb-10">▣ WALLIT</div>
                   <button
                     className="btn btn-primary my-5"
                     disabled={!connector?.ready}
@@ -1977,7 +1518,7 @@ const Home: NextPage = () => {
                     </div>
                   </div>
                 </div>
-                <label htmlFor="swap-modal" className="btn btn-circle m-5">
+                {/* <label htmlFor="swap-modal" className="btn btn-circle m-5">
                   <ArrowsRightLeftIcon className="hover:animate-spin" />
                 </label>
                 <input type="checkbox" id="swap-modal" className="modal-toggle" />
@@ -2033,7 +1574,7 @@ const Home: NextPage = () => {
                       </label>
                     </div>
                   </div>
-                </div>
+                </div> */}
                 <a href={zapperUrl!} target="_blank" className="btn btn-circle m-5" rel="noreferrer">
                   <ArchiveBoxIcon className="hover:animate-zoom" />
                 </a>
@@ -2070,7 +1611,6 @@ const Home: NextPage = () => {
                   processTransaction={processTransaction}
                 />
               </div>
-
               {tokenInWallet && (
                 <div className="grid md:grid-cols-2 sm:grid-cols lg:grid-cols-2 gap-4 my-10">
                   {tokenInWallet.map((token, index) => {

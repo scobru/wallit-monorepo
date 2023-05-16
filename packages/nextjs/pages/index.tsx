@@ -142,7 +142,7 @@ const Home: NextPage = () => {
   const loadWalletConnectData = ({ to, value, data }) => {
     console.log(to, value, data);
     setWcTo(to);
-    value ? setWcAmount(ethers.utils.formatEther(value)) : setWcAmount("0");
+    value ? setWcAmount(ethers.utils.formatEther(value)) : setWcAmount(parseEther("0"));
     setWcCustomCallData(data);
     setIsWalletConnectTransaction(true);
   };
@@ -1044,17 +1044,17 @@ const Home: NextPage = () => {
     fetchTokenInWallet();
   }, []);
 
-  useEffect(() => {
-    if (!address) {
-      setView(Views.SIGN_IN);
-    }
-  }, [address]);
+  // useEffect(() => {
+  //   if (!address) {
+  //     setView(Views.SIGN_IN);
+  //   }
+  // }, [address]);
 
-  useEffect(() => {
-    if (address) {
-      setView(Views.SIGN_IN);
-    }
-  }, [address]);
+  // useEffect(() => {
+  //   if (address) {
+  //     setView(Views.SIGN_IN);
+  //   }
+  // }, [address]);
 
   useEffect(() => {
     if (wallitCtx && yourWallit != ethers.constants.AddressZero && signer && currentPKP?.ethAddress) {
@@ -1305,32 +1305,37 @@ const Home: NextPage = () => {
         )}
         {view === Views.SESSION_CREATED && (
           <>
-            <div className="flex items-center flex-col flex-grow pt-5">
-              <div className="text-center items-center mx-auto">
-                <div className="my-2">
-                  <MetaMaskAvatar address={String(currentPKP?.ethAddress)} size={200} className="hover:animate-spin" />
-                  <div className="text-6xl text-center font-extrabold Capitalize mb-2 hover:animate-zoom">
-                    {wallitDescription!}
+            <div className="flex items-center flex-col flex-grow">
+              <div className=" w-fit bg-gradient-to-tr mx-auto  from-base-100 to-secondary  rounded-lg  border-1  shadow-2xl  shadow-black">
+                <div className="text-center items-center mx-auto px-5">
+                  <div className="my-5">
+                    <MetaMaskAvatar
+                      address={String(currentPKP?.ethAddress)}
+                      size={200}
+                      className="hover:animate-spin"
+                    />
+                    <div className="text-6xl text-center font-extrabold Capitalize mb-2 hover:animate-zoom">
+                      {wallitDescription!}
+                    </div>
                   </div>
                 </div>
-              </div>
-              <div>
-                <div className="w-fit mx-auto">
-                  <Address address={currentPKP?.ethAddress} format="short" />
-                </div>
-                <div className="items-center flex flex-row">
-                  <p className="text-6xl font-light   hover:animate-pulse-fast  items-center text-center  mx-auto my-10">
-                    💲{Number(balance).toFixed(3)}
-                  </p>
-                  <div
-                    className="btn btn-circle   text-2xl mx-10 "
-                    onClick={async () => {
-                      fetchTokenInWallet();
-                    }}
-                  >
-                    <ArrowPathIcon className="hover:animate-spin" height={30} width={30} />
+                <div>
+                  <div className="w-fit mx-auto">
+                    <Address address={currentPKP?.ethAddress} format="short" />
                   </div>
-                  {/* <div
+                  <div className="items-center flex flex-row">
+                    <p className="text-6xl font-light   hover:animate-pulse-fast  items-center text-center  mx-auto">
+                      💲{Number(balance).toFixed(3)}
+                    </p>
+                    <div
+                      className="btn btn-circle   text-2xl mx-10 "
+                      onClick={async () => {
+                        fetchTokenInWallet();
+                      }}
+                    >
+                      <ArrowPathIcon className="hover:animate-spin" height={30} width={30} />
+                    </div>
+                    {/* <div
                     className="btn btn-circle   text-2xl mx-10 "
                     onClick={async () => {
                       const tokenInWalletFilter = tokenInWallet?.filter(
@@ -1368,157 +1373,157 @@ const Home: NextPage = () => {
                   >
                     <ArrowPathIcon className="hover:animate-spin" height={50} width={50} />
                   </div> */}
-                </div>
-              </div>
-              <div className="flex-row mx-1">
-                <label htmlFor="send-modal" className="btn btn-circle m-5">
-                  <ArrowRightCircleIcon className="hover:animate-zoom" />
-                </label>
-                <input type="checkbox" id="send-modal" className="modal-toggle" />
-                <div className="modal">
-                  <div className="modal-box">
-                    <h3 className="font-bold text-lg m-2">Send ETH</h3>
-                    <input
-                      onChange={e => setAmountToSend(e.target.value)}
-                      className="input input-bordered w-full mb-4"
-                      type="text"
-                      required
-                      placeholder="Enter amount to send"
-                    />
-                    <input
-                      onChange={e => setTargetAddress(e.target.value)}
-                      className="input input-bordered w-full mb-4"
-                      type="text"
-                      required
-                      placeholder="Receiver "
-                    />
-
-                    <button onClick={sendETHWithPKP} className="btn btn-primary">
-                      Send ETH
-                    </button>
-                    <div className="divider mb-5 mt-5" />
-                    <h3 className="font-bold text-lg m-2">Wrap/Unwrap</h3>
-
-                    <input
-                      onChange={e => setAmountToSend(e.target.value)}
-                      className="input input-bordered w-full mb-4"
-                      type="text"
-                      required
-                      placeholder="Enter amount to send"
-                    />
-
-                    <button onClick={wrapETHWithPKP} className="btn btn-primary mx-2">
-                      Wrap ETH
-                    </button>
-                    <button onClick={unwrapETHWithPKP} className="btn btn-primary">
-                      Unwrap ETH
-                    </button>
-                    <div className="divider mb-5 mt-5" />
-                    <h3 className="font-bold text-lg m-2">Send ERC20</h3>
-                    <input
-                      onChange={e => setAmountToSend(e.target.value)}
-                      className="input input-bordered w-full mb-4"
-                      type="text"
-                      required
-                      placeholder="Enter amount to send"
-                    />
-                    <input
-                      onChange={e => setTargetAddress(e.target.value)}
-                      className="input input-bordered w-full mb-4"
-                      type="text"
-                      required
-                      placeholder="Receiver "
-                    />
-                    <select
-                      onChange={e => setTokenToApprove(e.target.value)}
-                      className="select select-bordered w-full mb-4"
-                    >
-                      {tokenInWallet.map(token => (
-                        <option key={token.address} value={token.address}>
-                          {token.symbol}
-                        </option>
-                      ))}
-                    </select>
-
-                    <button onClick={approveERC20WithPKP} className="btn btn-primary mx-2">
-                      Approve
-                    </button>
-                    <button onClick={sendERC20WithPKP} className="btn btn-primary">
-                      Transfer
-                    </button>
-                    <div className="modal-action">
-                      <label htmlFor="send-modal" className="btn">
-                        Close
-                      </label>
-                    </div>
                   </div>
                 </div>
-
-                <label htmlFor="receive-modal" className="btn btn-circle m-5">
-                  <ArrowDownCircleIcon className="hover:animate-zoom" />
-                </label>
-                <input type="checkbox" id="receive-modal" className="modal-toggle" />
-                <div className="modal">
-                  <div className="modal-box">
-                    <div className="mx-auto text-center items-center w-fit">
-                      <QRCodeCanvas
-                        id="qrCode"
-                        value={String(qrCodeUrl)}
-                        size={300}
-                        style={{ alignItems: "center" }}
-                        /* bgColor={"#00ff00"} */ level={"H"}
+                <div className="flex-row mx-1">
+                  <label htmlFor="send-modal" className="btn btn-circle m-5">
+                    <ArrowRightCircleIcon className="hover:animate-zoom" height={30} width={30} />
+                  </label>
+                  <input type="checkbox" id="send-modal" className="modal-toggle" />
+                  <div className="modal">
+                    <div className="modal-box">
+                      <h3 className="font-bold text-lg m-2">Send ETH</h3>
+                      <input
+                        onChange={e => setAmountToSend(e.target.value)}
+                        className="input input-bordered w-full mb-4"
+                        type="text"
+                        required
+                        placeholder="Enter amount to send"
                       />
-                    </div>
-                    <div className="modal-action">
-                      <label htmlFor="receive-modal" className="btn">
-                        Close
-                      </label>
+                      <input
+                        onChange={e => setTargetAddress(e.target.value)}
+                        className="input input-bordered w-full mb-4"
+                        type="text"
+                        required
+                        placeholder="Receiver "
+                      />
+
+                      <button onClick={sendETHWithPKP} className="btn btn-primary">
+                        Send ETH
+                      </button>
+                      <div className="divider mb-5 mt-5" />
+                      <h3 className="font-bold text-lg m-2">Wrap/Unwrap</h3>
+
+                      <input
+                        onChange={e => setAmountToSend(e.target.value)}
+                        className="input input-bordered w-full mb-4"
+                        type="text"
+                        required
+                        placeholder="Enter amount to send"
+                      />
+
+                      <button onClick={wrapETHWithPKP} className="btn btn-primary mx-2">
+                        Wrap ETH
+                      </button>
+                      <button onClick={unwrapETHWithPKP} className="btn btn-primary">
+                        Unwrap ETH
+                      </button>
+                      <div className="divider mb-5 mt-5" />
+                      <h3 className="font-bold text-lg m-2">Send ERC20</h3>
+                      <input
+                        onChange={e => setAmountToSend(e.target.value)}
+                        className="input input-bordered w-full mb-4"
+                        type="text"
+                        required
+                        placeholder="Enter amount to send"
+                      />
+                      <input
+                        onChange={e => setTargetAddress(e.target.value)}
+                        className="input input-bordered w-full mb-4"
+                        type="text"
+                        required
+                        placeholder="Receiver "
+                      />
+                      <select
+                        onChange={e => setTokenToApprove(e.target.value)}
+                        className="select select-bordered w-full mb-4"
+                      >
+                        {tokenInWallet.map(token => (
+                          <option key={token.address} value={token.address}>
+                            {token.symbol}
+                          </option>
+                        ))}
+                      </select>
+
+                      <button onClick={approveERC20WithPKP} className="btn btn-primary mx-2">
+                        Approve
+                      </button>
+                      <button onClick={sendERC20WithPKP} className="btn btn-primary">
+                        Transfer
+                      </button>
+                      <div className="modal-action">
+                        <label htmlFor="send-modal" className="btn">
+                          Close
+                        </label>
+                      </div>
                     </div>
                   </div>
-                </div>
-                <label htmlFor="customtx-modal" className="btn btn-circle m-5">
-                  <ArrowUpCircleIcon className="hover:animate-zoom" />
-                </label>
-                <input type="checkbox" id="customtx-modal" className="modal-toggle" />
-                <div className="modal">
-                  <div className="modal-box">
-                    <h3 className="font-bold text-lg m-2">Custom Tx</h3>
 
-                    <input
-                      onChange={e => setTargetAddress(e.target.value)}
-                      className="input input-bordered w-full mb-4"
-                      type="text"
-                      placeholder="Target Address"
-                    />
-                    <input
-                      value={amountToSend}
-                      onChange={e => setAmountToSend(e.target.value)}
-                      className="input input-bordered w-full mb-4"
-                      type="text"
-                      placeholder="Amount to send"
-                    />
-                    <a href="https://abi.hashex.org/" target="_blank" className="underline" rel="noreferrer">
-                      Calculate TxData from ABI
-                    </a>
-
-                    <input
-                      onChange={e => setCustomTx(e.target.value)}
-                      className="input input-bordered w-full my-5"
-                      type="text"
-                      placeholder="Enter custom tx"
-                    />
-                    <button onClick={sendCustomTxWithPKP} className="btn btn-primary">
-                      Send
-                    </button>
-
-                    <div className="modal-action">
-                      <label htmlFor="customtx-modal" className="btn">
-                        Close
-                      </label>
+                  <label htmlFor="receive-modal" className="btn btn-circle m-5">
+                    <ArrowDownCircleIcon className="hover:animate-zoom" height={30} width={30} />
+                  </label>
+                  <input type="checkbox" id="receive-modal" className="modal-toggle" />
+                  <div className="modal">
+                    <div className="modal-box">
+                      <div className="mx-auto text-center items-center w-fit">
+                        <QRCodeCanvas
+                          id="qrCode"
+                          value={String(qrCodeUrl)}
+                          size={300}
+                          style={{ alignItems: "center" }}
+                          /* bgColor={"#00ff00"} */ level={"H"}
+                        />
+                      </div>
+                      <div className="modal-action">
+                        <label htmlFor="receive-modal" className="btn">
+                          Close
+                        </label>
+                      </div>
                     </div>
                   </div>
-                </div>
-                {/* <label htmlFor="swap-modal" className="btn btn-circle m-5">
+                  <label htmlFor="customtx-modal" className="btn btn-circle m-5">
+                    <ArrowUpCircleIcon className="hover:animate-zoom" height={30} width={30} />
+                  </label>
+                  <input type="checkbox" id="customtx-modal" className="modal-toggle" />
+                  <div className="modal">
+                    <div className="modal-box">
+                      <h3 className="font-bold text-lg m-2">Custom Tx</h3>
+
+                      <input
+                        onChange={e => setTargetAddress(e.target.value)}
+                        className="input input-bordered w-full mb-4"
+                        type="text"
+                        placeholder="Target Address"
+                      />
+                      <input
+                        value={amountToSend}
+                        onChange={e => setAmountToSend(e.target.value)}
+                        className="input input-bordered w-full mb-4"
+                        type="text"
+                        placeholder="Amount to send"
+                      />
+                      <a href="https://abi.hashex.org/" target="_blank" className="underline" rel="noreferrer">
+                        Calculate TxData from ABI
+                      </a>
+
+                      <input
+                        onChange={e => setCustomTx(e.target.value)}
+                        className="input input-bordered w-full my-5"
+                        type="text"
+                        placeholder="Enter custom tx"
+                      />
+                      <button onClick={sendCustomTxWithPKP} className="btn btn-primary">
+                        Send
+                      </button>
+
+                      <div className="modal-action">
+                        <label htmlFor="customtx-modal" className="btn">
+                          Close
+                        </label>
+                      </div>
+                    </div>
+                  </div>
+                  {/* <label htmlFor="swap-modal" className="btn btn-circle m-5">
                   <ArrowsRightLeftIcon className="hover:animate-spin" />
                 </label>
                 <input type="checkbox" id="swap-modal" className="modal-toggle" />
@@ -1575,41 +1580,49 @@ const Home: NextPage = () => {
                     </div>
                   </div>
                 </div> */}
-                <a href={zapperUrl!} target="_blank" className="btn btn-circle m-5" rel="noreferrer">
-                  <ArchiveBoxIcon className="hover:animate-zoom" />
-                </a>
+                  <a href={zapperUrl!} target="_blank" className="btn btn-circle m-5" rel="noreferrer">
+                    <ArchiveBoxIcon className="hover:animate-zoom" height={30} width={30} />
+                  </a>
+                </div>
+                <div className="flex flex-row align-baseline">
+                  <div className="flex  items-center mb-5">
+                    <span className="ml-5 font-medium">Switch to</span>
+                    <select
+                      className="select mx-4"
+                      onChange={async e => {
+                        createSession(pkps.find(p => p.ethAddress === e.target.value));
+                      }}
+                    >
+                      {pkps.map(pkp => (
+                        <option key={pkp.ethAddress} value={pkp.ethAddress}>
+                          <Address address={pkp.ethAddress} format="short" />
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="text-right align-middle items-center">
+                    <button className="btn btn-md mr-5" onClick={mint}>
+                      Mint New
+                    </button>
+                  </div>
+                </div>
               </div>
-              <div className="flex items-center mb-10 mt-5">
-                <span className="mx-5 font-medium">Switch to</span>
-                <select
-                  className="select"
-                  onChange={async e => {
-                    createSession(pkps.find(p => p.ethAddress === e.target.value));
-                  }}
-                >
-                  {pkps.map(pkp => (
-                    <option key={pkp.ethAddress} value={pkp.ethAddress}>
-                      <Address address={pkp.ethAddress} format="short" />
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <button className="btn btn-md" onClick={mint}>
-                Mint another PKP
-              </button>
 
-              <div className="mt-5 w-full">
-                <WalletConnectInput
-                  chainId={137}
-                  address={currentPKP.ethAddress}
-                  loadWalletConnectData={loadWalletConnectData}
-                  provider={provider}
-                  price={0}
-                  walletInstance={walletInstance}
-                  sessionSigs={sessionSigs}
-                  currentPKP={currentPKP}
-                  processTransaction={processTransaction}
-                />
+              <div className="card card-compact w-full mt-10 text-left bg-primary p-4 border-2 border-primary-focus shadow-lg shadow-neutral ">
+                <div className="card-title text-2xl text-neutral">Wallet Connect</div>
+                <div className="card-body  w-full">
+                  <WalletConnectInput
+                    chainId={137}
+                    address={currentPKP.ethAddress}
+                    loadWalletConnectData={loadWalletConnectData}
+                    provider={provider}
+                    price={0}
+                    walletInstance={walletInstance}
+                    sessionSigs={sessionSigs}
+                    currentPKP={currentPKP}
+                    processTransaction={processTransaction}
+                  />
+                </div>
               </div>
               {tokenInWallet && (
                 <div className="grid md:grid-cols-2 sm:grid-cols lg:grid-cols-2 gap-4 my-10">
@@ -1648,27 +1661,25 @@ const Home: NextPage = () => {
                   </button>
                 </div>
               ) : null}
-              <div className="w-fit mt-10 text-left">
-                <div className="mx-4">
-                  <h1 className="text-lg">Give a name to yuour Wallit 🤖</h1>
-                  <div className="card card-compact mb-10">
-                    <input
-                      className="input input-primary w-full  mt-5"
-                      type="text"
-                      placeholder="Name your WALLIT"
-                      onChange={e => {
-                        setWallitName(e.target.value);
-                      }}
-                    />
-                    <button
-                      className="btn btn-primary  mt-5"
-                      onClick={() => {
-                        txData(executeSetWallitName?.writeAsync?.());
-                      }}
-                    >
-                      set name
-                    </button>
-                  </div>
+              <div className="card card-compact w-fit mt-10 text-left bg-secondary p-4 border-2 border-secondary shadow-lg shadow-neutral mb-10">
+                <h1 className="card-title text-lg text-primary-content">Give a name to yuour Wallit 🤖</h1>
+                <div className="card-body mb-5">
+                  <input
+                    className="input input-primary w-full"
+                    type="text"
+                    placeholder="Name your WALLIT"
+                    onChange={e => {
+                      setWallitName(e.target.value);
+                    }}
+                  />
+                  <button
+                    className="btn btn-primary  mt-5"
+                    onClick={() => {
+                      txData(executeSetWallitName?.writeAsync?.());
+                    }}
+                  >
+                    set name
+                  </button>
                 </div>
               </div>
               <div className="collapse">

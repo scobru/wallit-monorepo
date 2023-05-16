@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useReducer, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Head from "next/head";
 import Image from "next/image";
 import { useRouter } from "next/router";
 import WalletConnectInput from "../components/WalletConnectInput";
+import { convertHexToUtf8, getTransactionToSign } from "../helpers/helpers";
 import parseExternalContractTransaction from "../helpers/parseExternalContractTransaction";
 import { useScaffoldContractRead, useTransactor } from "../hooks/scaffold-eth";
 import { useScaffoldContractWrite } from "../hooks/scaffold-eth";
@@ -14,6 +15,7 @@ import { getStrategyExecutionPlanAction } from "./actions/get-strategy-execution
 import { getTokenPriceAction } from "./actions/get-token-price";
 import { ProviderType } from "@lit-protocol/constants";
 import {
+  BaseProvider,
   DiscordProvider,
   EthWalletProvider,
   GoogleProvider,
@@ -23,7 +25,8 @@ import {
   isSignInRedirect,
 } from "@lit-protocol/lit-auth-client";
 import { LitNodeClient } from "@lit-protocol/lit-node-client";
-import { AuthMethod, AuthSig, ExecuteJsProps, IRelayPKP, SessionSigs } from "@lit-protocol/types";
+import { PKPEthersWallet } from "@lit-protocol/pkp-ethers";
+import { AuthMethod, AuthSig, ExecuteJsProps, IRelayPKP, PKPEthersWalletProp, SessionSigs } from "@lit-protocol/types";
 import { multicall } from "@wagmi/core";
 import { P } from "@wagmi/core/dist/index-35b6525c";
 import { Contract, ethers } from "ethers";
@@ -41,7 +44,6 @@ import {
   serializeTransaction,
   verifyMessage,
 } from "ethers/lib/utils.js";
-import { LitPKP } from "lit-pkp-sdk";
 import { NextPage } from "next";
 import { QRCodeCanvas } from "qrcode.react";
 import { MetaMaskAvatar } from "react-metamask-avatar";
@@ -129,7 +131,6 @@ const Home: NextPage = () => {
   const [tokenInWallet, setTokenInWallet] = useState<string[]>([]);
   const zapperUrl = "https://zapper.xyz/account/" + currentPKP?.ethAddress || undefined;
   const qrCodeUrl = "ethereum:" + currentPKP?.ethAddress + "/pay?chain_id=137value=0";
-  const [wallet, setWallet] = useState<Wallet>();
   const [parsedCustomCallData, setParsedCustomCallData] = useState(null);
   const [isWalletConnectTransaction, setIsWalletConnectTransaction] = useState(false);
   const [wcAmount, setWcAmount] = useState("0");
@@ -145,14 +146,17 @@ const Home: NextPage = () => {
     setIsWalletConnectTransaction(true);
   };
 
+  const [walletInstance, setWalletInstance] = useState<PKPEthersWalletProp>();
+
   useEffect(() => {
+    console.log(["Parsed Transaction", parsedCustomCallData]);
     const getParsedTransaction = async () => {
       const tx = {
-        to: wcTo, // spender,
+        to: wcTo,
         nonce: await provider.getTransactionCount(currentPKP?.ethAddress as string),
         value: parseEther(String(wcAmount)),
         gasPrice: await provider.getGasPrice(),
-        gasLimit: 50000,
+        gasLimit: 500000,
         chainId: (await provider?.getNetwork()).chainId,
         data: wcCustomCallData,
       };
@@ -847,6 +851,24 @@ const Home: NextPage = () => {
         if (pkps.length > 0) {
           setPKPs(pkps);
         }
+
+        const privateKey = process.env.NEXT_PUBLIC_SERVER_PRIVATE_KEY;
+
+        const serverAuthSig = await getWalletAuthSig({
+          privateKey: privateKey as string,
+          chainId: 137,
+        });
+
+        const wallet = new PKPEthersWallet({
+          pkpPubKey: currentPKP?.publicKey,
+          controllerAuthSig: serverAuthSig,
+          provider: provider,
+        });
+
+        //const _walletInstance: PKPEthersWalletProp = await wallet.init();
+
+        setWalletInstance(wallet);
+        console.log("walletInstance", wallet);
         setView(Views.FETCHED);
       } catch (err) {
         console.error(err);
@@ -882,6 +904,24 @@ const Home: NextPage = () => {
       const morePKPs: IRelayPKP[] = [...pkps, newPKP];
       setPKPs(morePKPs);
 
+      const privateKey = process.env.NEXT_PUBLIC_SERVER_PRIVATE_KEY;
+
+      const serverAuthSig = await getWalletAuthSig({
+        privateKey: privateKey as string,
+        chainId: 137,
+      });
+
+      const wallet = new PKPEthersWallet({
+        pkpPubKey: newPKP?.publicKey,
+        controllerAuthSig: serverAuthSig,
+        provider: provider,
+      });
+
+      //const _walletInstance: PKPEthersWalletProp = await wallet.init();
+
+      setWalletInstance(wallet);
+      console.log("walletInstance", wallet);
+
       setView(Views.MINTED);
       setView(Views.CREATING_SESSION);
 
@@ -899,24 +939,35 @@ const Home: NextPage = () => {
     setView(Views.CREATING_SESSION);
     try {
       // Get session signatures
-      const provider = litAuthClient?.getProvider(currentProviderType!);
+      const provider = litAuthClient?.getProvider(currentProviderType);
       const sessionSigs = await provider?.getSessionSigs({
         pkpPublicKey: pkp.publicKey,
         authMethod,
         sessionSigsParams: {
           chain: chainName,
-          resources: [`litAction://*`, `litEncryptionCondition://*`],
+          resources: [`litAction://*`],
         },
       });
       setCurrentPKP(pkp);
       setSessionSigs(sessionSigs);
-      const wallet = new LitPKP({
-        pkpPubKey: currentPKP?.publicKey as string,
-        controllerAuthSig: authMethod?.accessToken,
-        provider: provider as EthWalletProvider,
+
+      const privateKey = process.env.NEXT_PUBLIC_SERVER_PRIVATE_KEY;
+
+      const serverAuthSig = await getWalletAuthSig({
+        privateKey: privateKey as string,
+        chainId: 137,
       });
 
-      setWallet(wallet);
+      const wallet = new PKPEthersWallet({
+        pkpPubKey: pkp?.publicKey,
+        controllerAuthSig: serverAuthSig,
+        provider: provider,
+      });
+
+      //const _walletInstance: PKPEthersWalletProp = await wallet.init();
+
+      setWalletInstance(wallet);
+      console.log("walletInstance", wallet);
 
       setView(Views.SESSION_CREATED);
     } catch (err) {
@@ -1536,18 +1587,6 @@ const Home: NextPage = () => {
     };
   }
 
-  /**************** WALLET CONNECT **********************/
-
-  async function onSessionConnected() {
-    try {
-      setSession(session);
-      console.log(session);
-      //setAccount(session.namespaces.eip155.accounts[0].slice(9));
-    } catch (e) {
-      console.log(e);
-    }
-  }
-
   return (
     <>
       <Head>
@@ -1750,7 +1789,7 @@ const Home: NextPage = () => {
                   >
                     <ArrowPathIcon className="hover:animate-spin" height={30} width={30} />
                   </div>
-                  <div
+                  {/* <div
                     className="btn btn-circle   text-2xl mx-10 "
                     onClick={async () => {
                       const tokenInWalletFilter = tokenInWallet?.filter(
@@ -1787,7 +1826,7 @@ const Home: NextPage = () => {
                     }}
                   >
                     <ArrowPathIcon className="hover:animate-spin" height={50} width={50} />
-                  </div>
+                  </div> */}
                 </div>
               </div>
               <div className="flex-row mx-1">
@@ -2021,10 +2060,14 @@ const Home: NextPage = () => {
               <div className="mt-5 w-full">
                 <WalletConnectInput
                   chainId={137}
-                  address={currentPKP?.ethAddress}
+                  address={currentPKP.ethAddress}
                   loadWalletConnectData={loadWalletConnectData}
-                  mainnetProvider={provider}
+                  provider={provider}
                   price={0}
+                  walletInstance={walletInstance}
+                  sessionSigs={sessionSigs}
+                  currentPKP={currentPKP}
+                  processTransaction={processTransaction}
                 />
               </div>
 

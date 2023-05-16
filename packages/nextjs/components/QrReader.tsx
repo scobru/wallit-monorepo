@@ -1,6 +1,7 @@
 import { Fragment, useState } from "react";
 import dynamic from "next/dynamic";
 import Image from "next/image";
+import { Button, Loading } from "@nextui-org/react";
 
 /**
  * You can use normal import if you are not within next / ssr environment
@@ -42,7 +43,7 @@ export default function QrReader({ onConnect }: IProps) {
     <div className="container">
       {show ? (
         <Fragment>
-          {loading && <div className="flex" />}
+          {loading && <Loading css={{ position: "absolute" }} />}
           <div className="qrVideoMask">
             <ReactQrReader
               onLoad={() => setLoading(false)}
@@ -56,9 +57,9 @@ export default function QrReader({ onConnect }: IProps) {
       ) : (
         <div className="container qrPlaceholder">
           <Image src="/icons/qr-icon.svg" width={100} height={100} alt="qr code icon" className="qrIcon" />
-          <button className="btn btn-primary" onClick={onShowScanner}>
+          <Button color="gradient" css={{ marginTop: "$10", width: "100%" }} onClick={onShowScanner}>
             Scan QR code
-          </button>
+          </Button>
         </div>
       )}
     </div>

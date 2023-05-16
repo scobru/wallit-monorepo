@@ -1,4 +1,4 @@
-import { EIP155_SIGNING_METHODS } from "../data/EIP155DAta";
+import { EIP155_SIGNING_METHODS } from "../data/EIP155Data";
 import ModalStore from "../store/ModalStore";
 import LegacySignClient from "@walletconnect/client";
 import { IWalletConnectSession } from "@walletconnect/legacy-types";
@@ -11,6 +11,7 @@ export function createLegacySignClient({ uri }: { uri?: string } = {}) {
   if (uri) {
     deleteCachedLegacySession();
     legacySignClient = new LegacySignClient({ uri });
+    console.log("legacySignClient > create new session", legacySignClient);
   } else if (!legacySignClient && getCachedLegacySession()) {
     const session = getCachedLegacySession();
     legacySignClient = new LegacySignClient({ session });

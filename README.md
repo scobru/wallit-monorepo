@@ -6,7 +6,12 @@ WALLIT is a decentralized wallet that utilizes Lit Protocol to create infinite p
 
 ### [https://wallit.vercel.app](./#https-wallit.vercel.app)
 
+## UPDATES
 
+#### 17/05/2023
+
+* [x] Wallet Connect bridge
+* [x] New UX
 
 ## Features
 
@@ -60,7 +65,5 @@ We welcome contributions to WALLIT! To contribute, follow these steps:
 ### License
 
 WALLIT is licensed under the MIT License. See LICENSE.md for more information.
-
-
 
 Thanks for using WALLIT! 🚀

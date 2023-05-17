@@ -9,7 +9,7 @@ import WalletConnect from "@walletconnect/client";
 import { Badge, Button, Input } from "antd";
 import { ethers } from "ethers";
 import { Interface, parseEther, serializeTransaction } from "ethers/lib/utils.js";
-import QrReader from "react-qr-reader";
+import { QrReader } from "react-qr-reader";
 import { convertHexToUtf8, getTransactionToSign } from "~~/helpers/helpers";
 
 const WalletConnectInput = ({
@@ -236,7 +236,7 @@ const WalletConnectInput = ({
       to,
       value,
     });
-    setIsModalVisible(false);
+    hideModal();
   };
 
   const resetConnection = () => {

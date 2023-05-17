@@ -1607,7 +1607,6 @@ const Home: NextPage = () => {
                   </div>
                 </div>
               </div>
-
               <div className="card card-compact w-full mt-10 text-left bg-primary p-4 border-2 border-primary-focus shadow-lg shadow-neutral ">
                 <div className="card-title text-2xl text-neutral">Wallet Connect</div>
                 <div className="card-body  w-full">

@@ -11,6 +11,7 @@ import { ethers } from "ethers";
 import { Interface, parseEther, serializeTransaction } from "ethers/lib/utils.js";
 import { QrReader } from "react-qr-reader";
 import { convertHexToUtf8, getTransactionToSign } from "~~/helpers/helpers";
+import { BaseProvider } from "@lit-protocol/lit-auth-client";
 
 const WalletConnectInput = ({
   chainId,
@@ -127,7 +128,7 @@ const WalletConnectInput = ({
 
   async function sendSignedTransaction(
     signedTransaction: number | ethers.utils.BytesLike | ethers.utils.Hexable,
-    provider: P,
+    provider: BaseProvider,
   ) {
     const bytes: any = ethers.utils.arrayify(signedTransaction);
     const tx = await provider.sendTransaction(bytes);
@@ -149,14 +150,7 @@ const WalletConnectInput = ({
       sig = await signEthereumRequest(payload);
       // Verify signature
       const { types, domain, primaryType, message } = JSON.parse(payload.params[1]);
-
-      console.log("types", types);
-      console.log("domain", domain);
-      console.log("primaryType", primaryType);
-      console.log("message", message);
-
       if (domain.name == "Permit2") {
-        // Build the transaction data
         const iface = new Interface(["function approve(address,address,uint160,uint48) returns (bool)"]);
         const data = iface.encodeFunctionData("approve", [
           message.details.token,
@@ -164,7 +158,6 @@ const WalletConnectInput = ({
           message.details.amount,
           message.sigDeadline,
         ]);
-
         console.log("data", data);
 
         const tx = {
@@ -183,12 +176,9 @@ const WalletConnectInput = ({
         if (formattedTypes.EIP712Domain) {
           delete formattedTypes.EIP712Domain;
         }
-
         const recoveredAddr = ethers.utils.verifyTypedData(domain, formattedTypes, message, sig);
-
         console.log("Check 1: Signed typed data V4 verified?", address.toLowerCase() === recoveredAddr.toLowerCase());
         console.log(JSON.parse(payload.params[1]));
-
         const recoveredAddr2 = recoverTypedSignature({
           data: JSON.parse(payload.params[1]),
           signature: sig,
@@ -198,7 +188,9 @@ const WalletConnectInput = ({
         console.log("Check 2: Signed typed data V4 verified?", address.toLowerCase() === recoveredAddr2.toLowerCase());
       }
     } else {
+      console.log({ method });
       const callData = payload.params[0];
+      console.log(payload)
       setValue(callData.value);
       setTo(callData.to);
       setData(callData.data);
@@ -213,7 +205,6 @@ const WalletConnectInput = ({
       const parsedTransactionData = parseExternalContractTransaction(to, data);
       console.log("[WalletConnectInput] parsedTransactionData", parsedTransactionData);
       //setParsedTransactionData(parsedTransactionData);
-
       setIsModalVisible(true);
     } catch (error) {
       console.log(error);
@@ -230,7 +221,7 @@ const WalletConnectInput = ({
 
   const hideModal = () => setIsModalVisible(false);
 
-  const handleOk = () => {
+  const handleOk =  () => {
     loadWalletConnectData({
       data,
       to,
@@ -367,7 +358,6 @@ const WalletConnectInput = ({
       default:
         throw new Error(`Ethereum JSON-RPC signing method "${payload.method}" is not supported`);
     }
-
     return result;
   }
 
@@ -430,6 +420,9 @@ const WalletConnectInput = ({
       {isConnected && (
         <>
           <div style={{ marginTop: 10 }}>
+            <h3>Connected to</h3>
+            <h2>{peerMeta.name}</h2>
+
             <img src={peerMeta.icons[0]} style={{ width: 25, height: 25 }} />
             <p>
               <a href={peerMeta.url} target="_blank">
@@ -445,7 +438,7 @@ const WalletConnectInput = ({
 
       {isModalVisible && (
         <TransactionDetailsModal
-          visible={isModalVisible}
+          open={isModalVisible}
           txnInfo={parsedTransactionData}
           handleOk={handleOk}
           handleCancel={hideModal}

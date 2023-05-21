@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
-import { useCallback, useEffect, useState } from "react";
+import { SetStateAction, useCallback, useEffect, useState } from "react";
 import Head from "next/head";
 import Image from "next/image";
 import { useRouter } from "next/router";
@@ -30,7 +30,7 @@ import { PKPEthersWallet } from "@lit-protocol/pkp-ethers";
 import { AuthMethod, AuthSig, ExecuteJsProps, IRelayPKP, PKPEthersWalletProp, SessionSigs } from "@lit-protocol/types";
 import { multicall } from "@wagmi/core";
 import { P } from "@wagmi/core/dist/index-35b6525c";
-import { Contract, ethers } from "ethers";
+import { BigNumber, Contract, ethers } from "ethers";
 import {
   Interface,
   arrayify,
@@ -71,9 +71,6 @@ import { Address } from "~~/components/scaffold-eth";
 import { useDeployedContractInfo } from "~~/hooks/scaffold-eth";
 import { notification } from "~~/utils/scaffold-eth";
 
-// const pinataApiSecret = process.env.NEXT_PUBLIC_PINATA_API_SECRET;
-// const pinataApiKey = process.env.NEXT_PUBLIC_PINATA_API_KEY;
-
 const DEBUG = true;
 
 enum Views {
@@ -100,7 +97,6 @@ const Home: NextPage = () => {
   const signerAddress = account?.address;
   const provider = useProvider();
   const router = useRouter();
-  const chainName = "polygon";
   const txData = useTransactor();
   const block = useBlockNumber();
   const { data: wallitCtx } = useDeployedContractInfo("Wallit");
@@ -134,20 +130,33 @@ const Home: NextPage = () => {
   const qrCodeUrl = "ethereum:" + currentPKP?.ethAddress + "/pay?chain_id=137value=0";
   const [parsedCustomCallData, setParsedCustomCallData] = useState(null);
   const [isWalletConnectTransaction, setIsWalletConnectTransaction] = useState(false);
-  const [wcAmount, setWcAmount] = useState("0");
+  const [wcAmount, setWcAmount] =useState<>(0);
   const [wcCustomCallData, setWcCustomCallData] = useState(null);
-
+  const [walletInstance, setWalletInstance] = useState<PKPEthersWalletProp>();
   const [wcTo, setWcTo] = useState<string>();
+  const chainId = useProvider()?.network?.chainId;
 
-  const loadWalletConnectData = ({ to, value, data }) => {
+  const chainName = () => {
+    switch (chainId) {
+      case 1:
+        return "ethereum";
+      case 137:
+        return "polygon";
+      case 80001:
+        return "mumbai";
+      case 56:
+        return "bsc";
+    }
+  };
+
+  const loadWalletConnectData = ( {to, value, data} ) => {
     console.log(to, value, data);
+    !value ? setWcAmount(parseEther("0")) : setWcAmount(value);
     setWcTo(to);
-    value ? setWcAmount(ethers.utils.formatEther(value)) : setWcAmount(parseEther("0"));
     setWcCustomCallData(data);
     setIsWalletConnectTransaction(true);
   };
 
-  const [walletInstance, setWalletInstance] = useState<PKPEthersWalletProp>();
 
   useEffect(() => {
     console.log(["Parsed Transaction", parsedCustomCallData]);
@@ -155,26 +164,30 @@ const Home: NextPage = () => {
       const tx = {
         to: wcTo,
         nonce: await provider.getTransactionCount(currentPKP?.ethAddress as string),
-        value: parseEther(String(wcAmount)),
+        value: wcAmount,
         gasPrice: await provider.getGasPrice(),
         gasLimit: 500000,
         chainId: (await provider?.getNetwork()).chainId,
         data: wcCustomCallData,
       };
-
       //const parsedTransaction = await parseExternalContractTransaction(wcto, wcCustomCallData);
-      console.log(tx);
-
       setParsedCustomCallData(tx);
     };
 
     getParsedTransaction();
-  }, [wcTo, wcCustomCallData]);
+  }, [ isWalletConnectTransaction]);
 
   useEffect(() => {
-    isWalletConnectTransaction && processTransaction(parsedCustomCallData);
-    setIsWalletConnectTransaction(false);
-  }, [isWalletConnectTransaction]);
+    if (isWalletConnectTransaction && parsedCustomCallData) {
+      const doTx = async () => {
+        await processTransaction(parsedCustomCallData);
+        setIsWalletConnectTransaction(false);
+      }
+      doTx();
+    }
+
+    
+  }, [isWalletConnectTransaction , parsedCustomCallData]);
 
   // if metamask is disconnected change view with setView
   // Use wagmi to connect one's eth wallet
@@ -410,8 +423,8 @@ const Home: NextPage = () => {
     maxPriorityFeePerGas?: ethers.BigNumberish | undefined;
     maxFeePerGas?: ethers.BigNumberish | undefined;
   }) {
-    const serializedTx = ethers.utils.serializeTransaction(await tx);
-    const toSign = ethers.utils.arrayify(ethers.utils.keccak256(await serializedTx));
+    const serializedTx = ethers.utils.serializeTransaction(tx);
+    const toSign = ethers.utils.arrayify(ethers.utils.keccak256(serializedTx));
     const message = serializedTx;
     let id = notification.info("Create Signature");
 
@@ -497,13 +510,14 @@ const Home: NextPage = () => {
 
     id = notification.loading("Waiting for transaction to be mined");
 
+    /* let receipt
     // Wait for the transaction to be mined
     while (true) {
-      const receipt = await provider.getTransactionReceipt(txSend.hash);
+      receipt = await provider.getTransactionReceipt(txSend.hash);
       if (receipt) {
         break;
       }
-    }
+    } */
 
     txSend
       .wait()
@@ -516,10 +530,11 @@ const Home: NextPage = () => {
         console.log("error", error);
         notification.remove(id);
 
-        id = notification.remove(id);
+        notification.remove(id);
 
         notification.error("Transaction Failed");
       });
+
   }
 
   async function sendSignedTransaction(
@@ -669,7 +684,6 @@ const Home: NextPage = () => {
       setTokenToApprove(tokenFrom);
       setAmountToSend(String(amountToSwap));
       setTargetAddress(addresses.polygon.uniswap.v3.SwapRouter02);
-
       console.log("[Wallit]: approving uniswap...");
       console.log("Token From", tokenFrom);
       console.log("Token To", tokenTo);
@@ -746,7 +760,7 @@ const Home: NextPage = () => {
     const authMethod = await provider?.authenticate({
       address,
       signMessage: signAuthSig,
-      chain: chainName,
+      chain: chainName(),
     });
 
     setCurrentProviderType(ProviderType.EthWallet);
@@ -813,7 +827,7 @@ const Home: NextPage = () => {
         pkpPublicKey: currentPKP?.publicKey as string,
         authMethod,
         sessionSigsParams: {
-          chain: chainName,
+          chain: chainName(),
           resources: [`litAction://*`],
         },
       });
@@ -945,7 +959,7 @@ const Home: NextPage = () => {
         pkpPublicKey: pkp.publicKey,
         authMethod,
         sessionSigsParams: {
-          chain: chainName,
+          chain: chainName(),
           resources: [`litAction://*`],
         },
       });
@@ -1044,35 +1058,39 @@ const Home: NextPage = () => {
     fetchTokenInWallet();
   }, []);
 
-  // useEffect(() => {
-  //   if (!address) {
-  //     setView(Views.SIGN_IN);
-  //   }
-  // }, [address]);
-
-  // useEffect(() => {
-  //   if (address) {
-  //     setView(Views.SIGN_IN);
-  //   }
-  // }, [address]);
+  useEffect(() => {
+    if (!address) {
+      setView(Views.SIGN_IN);
+    }
+  }, [address,chainId]);
 
   useEffect(() => {
-    if (wallitCtx && yourWallit != ethers.constants.AddressZero && signer && currentPKP?.ethAddress) {
+    if (address) {
+      setView(Views.SIGN_IN);
+    }
+  }, [address,chainId]);
+
+  useEffect(() => {
+    if (wallitCtx && signer && currentPKP?.ethAddress) {
       const contract = new ethers.Contract(String(yourWallit), wallitCtx?.abi, signer || provider);
       const getBalance = async () => {
-        const balance = await provider.getBalance(currentPKP?.ethAddress);
-        setBalance(ethers.utils.formatEther(balance));
+        const _balance = await provider.getBalance(currentPKP?.ethAddress);
+        console.log(["balance", _balance, ethers.utils.formatEther(_balance)]);
+        setBalance(ethers.utils.formatEther(_balance));
       };
       getBalance();
+
+      if( yourWallit != ethers.constants.AddressZero) {
       const getWallitNames = async () => {
         const name = await contract.getNames(currentPKP?.ethAddress);
         setWallitDescription(name);
       };
       getWallitNames();
+      }
     } else {
       setWallitDescription("");
     }
-  }, [block, signer, provider, wallitCtx, currentPKP?.ethAddress, balance]);
+  }, [block, signer, provider]);
 
   useEffect(() => {
     /**
@@ -1164,7 +1182,6 @@ const Home: NextPage = () => {
             </button>
           </>
         )}
-
         {view === Views.SIGN_IN && (
           <>
             {/* <h1 className="text-8xl font-bold">WALLIT</h1> */}
@@ -1589,8 +1606,8 @@ const Home: NextPage = () => {
                     <span className="ml-5 font-medium">Switch to</span>
                     <select
                       className="select mx-4"
-                      onChange={async e => {
-                        createSession(pkps.find(p => p.ethAddress === e.target.value));
+                      onChange={async (e) => {
+                        createSession(pkps.find(p => p.ethAddress == e.target.value));
                       }}
                     >
                       {pkps.map(pkp => (
@@ -1606,13 +1623,12 @@ const Home: NextPage = () => {
                     </button>
                   </div>
                 </div>
-              </div>
-              <div className="card card-compact w-full mt-10 text-left bg-primary p-4 border-2 border-primary-focus shadow-lg shadow-neutral ">
+                <div className="card card-compact rounded-none w-full mt-10 text-left bg-primary p-4 border-1 border-primary-focus ">
                 <div className="card-title text-2xl text-neutral">Wallet Connect</div>
                 <div className="card-body  w-full">
                   <WalletConnectInput
                     chainId={137}
-                    address={currentPKP.ethAddress}
+                    address={currentPKP?.ethAddress}
                     loadWalletConnectData={loadWalletConnectData}
                     provider={provider}
                     price={0}
@@ -1623,6 +1639,40 @@ const Home: NextPage = () => {
                   />
                 </div>
               </div>
+              {yourWallit === ethers.constants.AddressZero && yourWallit  && chainId == 137 ? (
+                <div>
+                  <button
+                    className="btn btn-secondary w-full"
+                    onClick={async () => {
+                      createWallit();
+                    }}
+                  >
+                    Name your Wallit
+                  </button>
+                </div>
+              ) : <div className="card card-compact rounded-none w-full  text-left bg-secondary p-4 border-2 border-secondary shadow-lg shadow-neutral">
+              <h1 className="card-title text-lg text-primary-content">Give a name to yuour Wallit 🤖</h1>
+              <div className="card-body mb-5">
+                <input
+                  className="input input-primary w-full"
+                  type="text"
+                  placeholder="Name your WALLIT"
+                  onChange={e => {
+                    setWallitName(e.target.value);
+                  }}
+                />
+                <button
+                  className="btn btn-primary  mt-5"
+                  onClick={() => {
+                    txData(executeSetWallitName?.writeAsync?.());
+                  }}
+                >
+                  set name
+                </button>
+              </div>
+            </div>}
+              </div>
+             
               {tokenInWallet && (
                 <div className="grid md:grid-cols-2 sm:grid-cols lg:grid-cols-2 gap-4 my-10">
                   {tokenInWallet.map((token, index) => {
@@ -1648,39 +1698,8 @@ const Home: NextPage = () => {
                   })}
                 </div>
               )}
-              {yourWallit === ethers.constants.AddressZero && yourWallit ? (
-                <div>
-                  <button
-                    className="btn btn-primary my-5"
-                    onClick={async () => {
-                      createWallit();
-                    }}
-                  >
-                    Name your account
-                  </button>
-                </div>
-              ) : null}
-              <div className="card card-compact w-fit mt-10 text-left bg-secondary p-4 border-2 border-secondary shadow-lg shadow-neutral mb-10">
-                <h1 className="card-title text-lg text-primary-content">Give a name to yuour Wallit 🤖</h1>
-                <div className="card-body mb-5">
-                  <input
-                    className="input input-primary w-full"
-                    type="text"
-                    placeholder="Name your WALLIT"
-                    onChange={e => {
-                      setWallitName(e.target.value);
-                    }}
-                  />
-                  <button
-                    className="btn btn-primary  mt-5"
-                    onClick={() => {
-                      txData(executeSetWallitName?.writeAsync?.());
-                    }}
-                  >
-                    set name
-                  </button>
-                </div>
-              </div>
+             
+              
               <div className="collapse">
                 <input type="checkbox" />
                 <div className="collapse-title text-2xl font-extrabold">👇🏻DO NOT TRUST VERIFY!</div>

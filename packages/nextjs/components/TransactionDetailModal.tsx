@@ -5,7 +5,7 @@ import { Button, Modal } from "antd";
 //import { ethers } from "ethers";
 
 export default function TransactionDetailsModal({
-  visible,
+  open,
   handleOk,
   handleCancel,
   mainnetProvider,
@@ -16,13 +16,13 @@ export default function TransactionDetailsModal({
   return (
     <Modal
       title="Transaction Details"
-      open={visible}
+      open={open}
       onCancel={handleCancel}
       destroyOnClose
       onOk={handleOk}
       closable
       maskClosable
-      txnInfo
+      /* txnInfo */
       footer={
         showFooter
           ? [
@@ -36,7 +36,7 @@ export default function TransactionDetailsModal({
           : null
       }
     >
-      {txnInfo && (
+     {/*  {txnInfo && (
         <div>
           <p>
             <b>Event Name :</b> {txnInfo.functionFragment.name}
@@ -88,7 +88,7 @@ export default function TransactionDetailsModal({
             {txnInfo.sighash}
           </p>
         </div>
-      )}
+      )} */}
     </Modal>
   );
 }

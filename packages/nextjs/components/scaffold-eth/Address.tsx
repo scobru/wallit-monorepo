@@ -6,6 +6,9 @@ import { CopyToClipboard } from "react-copy-to-clipboard";
 import { useEnsAvatar, useEnsName } from "wagmi";
 import { CheckCircleIcon, DocumentDuplicateIcon } from "@heroicons/react/24/outline";
 import { getBlockExplorerAddressLink, getTargetNetwork } from "~~/utils/scaffold-eth";
+import { useNetwork } from "wagmi";
+
+
 
 type TAddressProps = {
   address?: string;
@@ -54,7 +57,11 @@ export const Address = ({ address, disableAddressLink, format }: TAddressProps) 
     return <span className="text-error">Wrong address</span>;
   }
 
-  const blockExplorerAddressLink = getBlockExplorerAddressLink(getTargetNetwork(), address);
+  const network = useNetwork();
+
+  // const blockExplorerAddressLink = getBlockExplorerAddressLink(getTargetNetwork(), address);
+  const blockExplorerAddressLink = getBlockExplorerAddressLink(network.chain!, address);
+
   let displayAddress = address?.slice(0, 5) + "..." + address?.slice(-4);
 
   if (ens) {

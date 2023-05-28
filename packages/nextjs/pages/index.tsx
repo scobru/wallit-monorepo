@@ -12,8 +12,6 @@ import useLocalStorage from "../hooks/useLocalStorage";
 import UniswapIcon from "../uniswap.png";
 import { addresses } from "../utils/constant";
 import { getWalletAuthSig } from "../utils/get-wallet-auth-sig";
-import { getStrategyExecutionPlanAction } from "./actions/get-strategy-execution-plan";
-import { getTokenPriceAction } from "./actions/get-token-price";
 import { ProviderType } from "@lit-protocol/constants";
 import {
   BaseProvider,
@@ -26,6 +24,7 @@ import {
   isSignInRedirect,
 } from "@lit-protocol/lit-auth-client";
 import { LitNodeClient } from "@lit-protocol/lit-node-client";
+import { LitAbility, LitAccessControlConditionResource, newSessionCapabilityObject } from "@lit-protocol/auth-helpers";
 import { PKPEthersWallet } from "@lit-protocol/pkp-ethers";
 import { AuthMethod, AuthSig, ExecuteJsProps, IRelayPKP, PKPEthersWalletProp, SessionSigs } from "@lit-protocol/types";
 import { multicall } from "@wagmi/core";
@@ -130,7 +129,7 @@ const Home: NextPage = () => {
   const qrCodeUrl = "ethereum:" + currentPKP?.ethAddress + "/pay?chain_id=137value=0";
   const [parsedCustomCallData, setParsedCustomCallData] = useState(null);
   const [isWalletConnectTransaction, setIsWalletConnectTransaction] = useState(false);
-  const [wcAmount, setWcAmount] =useState<>(0);
+  const [wcAmount, setWcAmount] = useState<>(0);
   const [wcCustomCallData, setWcCustomCallData] = useState(null);
   const [walletInstance, setWalletInstance] = useState<PKPEthersWalletProp>();
   const [wcTo, setWcTo] = useState<string>();
@@ -149,7 +148,7 @@ const Home: NextPage = () => {
     }
   };
 
-  const loadWalletConnectData = ( {to, value, data} ) => {
+  const loadWalletConnectData = ({ to, value, data }) => {
     console.log(to, value, data);
     !value ? setWcAmount(parseEther("0")) : setWcAmount(value);
     setWcTo(to);
@@ -175,7 +174,7 @@ const Home: NextPage = () => {
     };
 
     getParsedTransaction();
-  }, [ isWalletConnectTransaction]);
+  }, [isWalletConnectTransaction]);
 
   useEffect(() => {
     if (isWalletConnectTransaction && parsedCustomCallData) {
@@ -186,8 +185,8 @@ const Home: NextPage = () => {
       doTx();
     }
 
-    
-  }, [isWalletConnectTransaction , parsedCustomCallData]);
+
+  }, [isWalletConnectTransaction, parsedCustomCallData]);
 
   // if metamask is disconnected change view with setView
   // Use wagmi to connect one's eth wallet
@@ -423,6 +422,7 @@ const Home: NextPage = () => {
     maxPriorityFeePerGas?: ethers.BigNumberish | undefined;
     maxFeePerGas?: ethers.BigNumberish | undefined;
   }) {
+    console.log("Process Transaction");
     const serializedTx = ethers.utils.serializeTransaction(tx);
     const toSign = ethers.utils.arrayify(ethers.utils.keccak256(serializedTx));
     const message = serializedTx;
@@ -439,11 +439,13 @@ const Home: NextPage = () => {
         go();
       `;
 
+    let _authSig = JSON.parse(sessionSigs['https://serrano.litgateway.com:7370'].signedMessage)
+
     // Sign message
     // @ts-ignore - complains about no authSig, but we don't need one for this action
     const results = await litNodeClient.executeJs({
       code: litActionCode,
-      sessionSigs: sessionSigs,
+      authSig: _authSig['capabilities'][0],
       jsParams: {
         toSign: toSign,
         publicKey: currentPKP?.publicKey,
@@ -509,15 +511,6 @@ const Home: NextPage = () => {
     notification.remove(id);
 
     id = notification.loading("Waiting for transaction to be mined");
-
-    /* let receipt
-    // Wait for the transaction to be mined
-    while (true) {
-      receipt = await provider.getTransactionReceipt(txSend.hash);
-      if (receipt) {
-        break;
-      }
-    } */
 
     txSend
       .wait()
@@ -750,6 +743,7 @@ const Home: NextPage = () => {
 
     // Create a function to handle signing messages
     const signer = await connector.getSigner();
+
     const signAuthSig = async (message: string) => {
       const sig = await signer.signMessage(message);
       return sig;
@@ -954,17 +948,44 @@ const Home: NextPage = () => {
     setView(Views.CREATING_SESSION);
     try {
       // Get session signatures
+
       const provider = litAuthClient?.getProvider(currentProviderType);
+
+      // const sessionSigs = await provider?.getSessionSigs({
+      //   pkpPublicKey: pkp.publicKey,
+      //   authMethod,
+      //   sessionSigsParams: {
+      //     chain: chainName(),
+      //     resources: [`litAction://*`],
+      //   },
+      // });
+
+      setCurrentPKP(pkp);
+
+      const litResource = new LitAccessControlConditionResource('*');
+
+      console.log(authMethod)
+      console.log(pkp)
+
       const sessionSigs = await provider?.getSessionSigs({
-        pkpPublicKey: pkp.publicKey,
-        authMethod,
+        pkpPublicKey: pkp?.publicKey as string,
+        authMethod: {
+          authMethodType: authMethod?.authMethodType,
+          accessToken: authMethod?.accessToken
+        },
         sessionSigsParams: {
           chain: chainName(),
-          resources: [`litAction://*`],
+          resourceAbilityRequests: [{
+            resource: litResource,
+            ability: LitAbility.PKPSigning
+          }],
+          resources: [],
         },
+        litNodeClient
       });
-      setCurrentPKP(pkp);
+
       setSessionSigs(sessionSigs);
+      console.log(sessionSigs)
 
       const privateKey = process.env.NEXT_PUBLIC_SERVER_PRIVATE_KEY;
 
@@ -1058,17 +1079,17 @@ const Home: NextPage = () => {
     fetchTokenInWallet();
   }, []);
 
-  useEffect(() => {
-    if (!address) {
-      setView(Views.SIGN_IN);
-    }
-  }, [address,chainId]);
-
-  useEffect(() => {
-    if (address) {
-      setView(Views.SIGN_IN);
-    }
-  }, [address,chainId]);
+  /*  useEffect(() => {
+     if (!address) {
+       setView(Views.SIGN_IN);
+     }
+   }, [address, chainId]);
+ 
+   useEffect(() => {
+     if (address) {
+       setView(Views.SIGN_IN);
+     }
+   }, [address, chainId]); */
 
   useEffect(() => {
     if (wallitCtx && signer && currentPKP?.ethAddress) {
@@ -1080,12 +1101,12 @@ const Home: NextPage = () => {
       };
       getBalance();
 
-      if( yourWallit != ethers.constants.AddressZero) {
-      const getWallitNames = async () => {
-        const name = await contract.getNames(currentPKP?.ethAddress);
-        setWallitDescription(name);
-      };
-      getWallitNames();
+      if (yourWallit != ethers.constants.AddressZero) {
+        const getWallitNames = async () => {
+          const name = await contract.getNames(currentPKP?.ethAddress);
+          setWallitDescription(name);
+        };
+        getWallitNames();
       }
     } else {
       setWallitDescription("");
@@ -1624,55 +1645,55 @@ const Home: NextPage = () => {
                   </div>
                 </div>
                 <div className="card card-compact rounded-none w-full mt-10 text-left bg-primary p-4 border-1 border-primary-focus ">
-                <div className="card-title text-2xl text-neutral">Wallet Connect</div>
-                <div className="card-body  w-full">
-                  <WalletConnectInput
-                    chainId={137}
-                    address={currentPKP?.ethAddress}
-                    loadWalletConnectData={loadWalletConnectData}
-                    provider={provider}
-                    price={0}
-                    walletInstance={walletInstance}
-                    sessionSigs={sessionSigs}
-                    currentPKP={currentPKP}
-                    processTransaction={processTransaction}
-                  />
+                  <div className="card-title text-2xl text-neutral">Wallet Connect</div>
+                  <div className="card-body  w-full">
+                    <WalletConnectInput
+                      chainId={137}
+                      address={currentPKP?.ethAddress}
+                      loadWalletConnectData={loadWalletConnectData}
+                      provider={provider}
+                      price={0}
+                      walletInstance={walletInstance}
+                      sessionSigs={sessionSigs}
+                      currentPKP={currentPKP}
+                      processTransaction={processTransaction}
+                    />
+                  </div>
                 </div>
+                {yourWallit === ethers.constants.AddressZero && yourWallit && chainId == 137 ? (
+                  <div>
+                    <button
+                      className="btn btn-secondary w-full"
+                      onClick={async () => {
+                        createWallit();
+                      }}
+                    >
+                      Name your Wallit
+                    </button>
+                  </div>
+                ) : <div className="card card-compact rounded-none w-full  text-left bg-secondary p-4 border-2 border-secondary shadow-lg shadow-neutral">
+                  <h1 className="card-title text-lg text-primary-content">Give a name to yuour Wallit 🤖</h1>
+                  <div className="card-body mb-5">
+                    <input
+                      className="input input-primary w-full"
+                      type="text"
+                      placeholder="Name your WALLIT"
+                      onChange={e => {
+                        setWallitName(e.target.value);
+                      }}
+                    />
+                    <button
+                      className="btn btn-primary  mt-5"
+                      onClick={() => {
+                        txData(executeSetWallitName?.writeAsync?.());
+                      }}
+                    >
+                      set name
+                    </button>
+                  </div>
+                </div>}
               </div>
-              {yourWallit === ethers.constants.AddressZero && yourWallit  && chainId == 137 ? (
-                <div>
-                  <button
-                    className="btn btn-secondary w-full"
-                    onClick={async () => {
-                      createWallit();
-                    }}
-                  >
-                    Name your Wallit
-                  </button>
-                </div>
-              ) : <div className="card card-compact rounded-none w-full  text-left bg-secondary p-4 border-2 border-secondary shadow-lg shadow-neutral">
-              <h1 className="card-title text-lg text-primary-content">Give a name to yuour Wallit 🤖</h1>
-              <div className="card-body mb-5">
-                <input
-                  className="input input-primary w-full"
-                  type="text"
-                  placeholder="Name your WALLIT"
-                  onChange={e => {
-                    setWallitName(e.target.value);
-                  }}
-                />
-                <button
-                  className="btn btn-primary  mt-5"
-                  onClick={() => {
-                    txData(executeSetWallitName?.writeAsync?.());
-                  }}
-                >
-                  set name
-                </button>
-              </div>
-            </div>}
-              </div>
-             
+
               {tokenInWallet && (
                 <div className="grid md:grid-cols-2 sm:grid-cols lg:grid-cols-2 gap-4 my-10">
                   {tokenInWallet.map((token, index) => {
@@ -1687,10 +1708,10 @@ const Home: NextPage = () => {
                           {token.decimals == 18
                             ? String(token.balance / 1e18)
                             : token.decimals == 6
-                            ? String(token.balance / 1e6)
-                            : token.decimals == 8
-                            ? String(token.balance / 1e8)
-                            : String(token.balance / 1e12)}
+                              ? String(token.balance / 1e6)
+                              : token.decimals == 8
+                                ? String(token.balance / 1e8)
+                                : String(token.balance / 1e12)}
                         </p>
                         <p className="text-xs text-gray-500">{token.address}</p>
                       </div>
@@ -1698,8 +1719,8 @@ const Home: NextPage = () => {
                   })}
                 </div>
               )}
-             
-              
+
+
               <div className="collapse">
                 <input type="checkbox" />
                 <div className="collapse-title text-2xl font-extrabold">👇🏻DO NOT TRUST VERIFY!</div>

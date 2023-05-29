@@ -23,7 +23,7 @@ const burnerConfig = scaffoldConfig.burnerWallet;
 //   (configuredNetwork.id as number) === 1 ? [configuredNetwork] : [configuredNetwork, chains.mainnet];
 
 
-const enabledChains = [configuredNetwork, chains.mainnet, chains.polygon, chains.bsc];
+const enabledChains = [configuredNetwork, chains.mainnet, chains.polygon, chains.bsc, chains.polygonMumbai];
 /**
  * Chains for the app
  */

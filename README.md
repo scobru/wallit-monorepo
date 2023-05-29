@@ -8,22 +8,27 @@ WALLIT is a decentralized wallet that utilizes Lit Protocol to create infinite p
 
 ## UPDATES
 
+#### 30/05/2023
+
+* [x] Fix Lit Protocol API update.
+* [x] Multichain support for Ethereum, BNB Chain, Mumbai and Polygon mainnet.
+
 #### 17/05/2023
 
-* [x] Wallet Connect bridge
+* [x] Wallet Connect Bridge
 * [x] New UX
 
 ## Features
 
 1. Ethereum Wallet: Store, send, and receive Ether (ETH) and ERC-20, ERC-721, and ERC-1155 tokens.
 2. Multi-account management: Create and manage multiple Ethereum addresses within a single MetaMask account.
-3. Swaps: Swap tokens directly within the MetaMask wallet using decentralized exchanges and aggregators.
-4. Secure key management: Encrypts and stores your private keys locally on your device, ensuring maximum security.
-5. Mobile app: Access Wallit on the go with any browser.
-6. QR code scanner: Scan QR codes to easily receive or send tokens and interact with dApps.
-7. Secure Storage of Private keys by Lit Protocol.
+3. Secure key management: Encrypts and stores your private keys locally on your device, ensuring maximum security.
+4. Mobile app: Access Wallit on the go with any browser.
+5. QR code scanner: Scan QR codes to easily receive or send tokens and interact with dApps.
+6. Secure Storage of Private keys by Lit Protocol.
+7. Wallet Connect Bridge.
 
-###
+
 
 ### What is [Lit ](https://litprotocol.com/)PKP?
 

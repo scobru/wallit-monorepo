@@ -69,6 +69,7 @@ import {
 import { Address } from "~~/components/scaffold-eth";
 import { useDeployedContractInfo } from "~~/hooks/scaffold-eth";
 import { notification } from "~~/utils/scaffold-eth";
+import tierBanner  from "~~/public/assets/banner.png";
 
 const DEBUG = true;
 
@@ -1210,7 +1211,17 @@ const Home: NextPage = () => {
             <>
               {isConnected ? (
                 <>
-                  <div className="text-6xl font-bold mb-10">▣ WALLIT</div>
+                  {/* <div className="text-6xl font-bold mb-10">▣ WALLIT</div> */}
+                  <div className="max-w-3xl text-center items-center my-2 mx-auto">
+                  <div className="max-w-2xl px-6 py-2 text-center">
+                    <Image src={tierBanner} alt="Tiers Banner" className="mx-auto mb-10 justify-start" />
+                    <p className="mt-8 text-3xl font-medium">A crypto wallet build on top of Lit Protocol.</p>
+                    <p className="mt-4 text-xl font-regular">Record your thoughts, ideas, and feelings on the blockchain.</p>
+
+                    {/*           <img src="https://picsum.photos/1200/600" alt="Random image" className="mx-auto mt-10 rounded-lg shadow-xl" />
+                    */}{" "}
+                  </div>
+                </div>
                   <button
                     className="btn btn-primary my-5"
                     disabled={!connector?.ready}

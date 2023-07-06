@@ -1216,9 +1216,7 @@ const Home: NextPage = () => {
                   <div className="max-w-2xl px-6 py-2 text-center">
                     <Image src={tierBanner} alt="Tiers Banner" className="mx-auto mb-10 justify-start" />
                     <p className="mt-8 text-3xl font-medium">A crypto wallet build on top of Lit Protocol.</p>
-                    <p className="mt-4 text-xl font-regular">Record your thoughts, ideas, and feelings on the blockchain.</p>
-
-                    {/*           <img src="https://picsum.photos/1200/600" alt="Random image" className="mx-auto mt-10 rounded-lg shadow-xl" />
+                     {/*           <img src="https://picsum.photos/1200/600" alt="Random image" className="mx-auto mt-10 rounded-lg shadow-xl" />
                     */}{" "}
                   </div>
                 </div>
